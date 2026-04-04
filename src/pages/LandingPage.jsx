@@ -55,7 +55,7 @@ const SECTION_DEFAULTS = {
 const SAMPLE_DATA = {
   name: 'Adeline Palmerston',
   title: 'Senior Brand Designer',
-  email: 'adeline@resumeai.studio',
+  email: 'adeline@cvcraft.co.in',
   phone: '+1 (415) 555-0127',
   location: 'San Francisco, CA',
   summary: 'Design leader shaping premium product stories, visual systems, and high-conversion resumes for ambitious professionals across editorial, product, and hiring touchpoints. Adept at translating complex experience into elegant, persuasive layouts that feel premium and easy to scan. Strong collaborator with product, marketing, and founder teams; comfortable driving concept direction, case-study structure, hiring collateral, and polished presentation systems from first draft to launch.',
@@ -118,7 +118,7 @@ const SAMPLE_DATA = {
       title: 'Selected Projects',
       placement: 'main',
       items: [
-        'ResumeAI Studio Redesign - Reframed the homepage, template gallery, and premium editor experience.',
+        'CV Craft brand refresh - Reframed the homepage, template gallery, and premium editor experience.',
         'Northstar Brand Story - Built a modular executive resume and pitch deck system for leadership hiring.',
         'Creative Career Playbook - Developed repeatable content structure for portfolios, resumes, and case studies.',
       ],
@@ -229,7 +229,7 @@ export default function LandingPage({ onStart }) {
           <div className="landing-copy fade-up">
             <div className="landing-badge">
               <span className="landing-badge-dot" />
-              Premium AI Resume Builder
+              CV Craft
             </div>
 
             <h1 className="landing-title">
@@ -238,7 +238,7 @@ export default function LandingPage({ onStart }) {
             </h1>
 
             <p className="landing-subtitle">
-              Upload any resume, let AI structure the content, and refine it with premium templates that already look polished before you touch a thing.
+              Upload any resume, let AI structure the content, and refine it with premium templates that look polished before you touch a thing.
             </p>
 
             <div className="landing-cta-row">

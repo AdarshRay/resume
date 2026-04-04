@@ -28,7 +28,7 @@ export default function Nav({ onGoHome, theme, onToggleTheme, step, templateName
   };
 
   const isDark = theme === 'dark';
-  const activeTemplate = TEMPLATE_NAMES[templateName] || 'Resume Studio';
+  const activeTemplate = TEMPLATE_NAMES[templateName] || 'CV Craft Studio';
   const isPreview = step === 'preview';
   const statusLabel = step === 'generating' ? 'Generating' : step === 'upload' ? 'Upload' : step === 'preview' ? 'Editing' : 'Ready';
 
@@ -39,18 +39,14 @@ export default function Nav({ onGoHome, theme, onToggleTheme, step, templateName
 
       <button onClick={onGoHome} className="nav-logo group">
         <div className="nav-logo-icon">
-          <div className="nav-logo-icon-core">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="8" y1="13" x2="16" y2="13" />
-              <line x1="8" y1="17" x2="13" y2="17" />
-            </svg>
-          </div>
+          <img src="/cv-craft-logo.svg" alt="CV Craft" className="nav-logo-image" />
         </div>
         <div className="nav-brand-copy">
-          <span className="nav-logo-text">ResumeAI</span>
-          <span className="nav-logo-subtext">Design resumes with polish</span>
+          <span className="nav-logo-text">
+            <span className="nav-logo-text-accent">CV</span>
+            <span className="nav-logo-text-main">Craft</span>
+          </span>
+          <span className="nav-logo-subtext">cvcraft.co.in</span>
         </div>
       </button>
 
@@ -58,8 +54,8 @@ export default function Nav({ onGoHome, theme, onToggleTheme, step, templateName
         <div className="nav-centerpiece-pill">
           <span className="nav-centerpiece-dot" />
           <div className="nav-centerpiece-copy">
-            <span className="nav-centerpiece-label">{isPreview ? activeTemplate : 'Resume Studio'}</span>
-            <span className="nav-centerpiece-sub">{isPreview ? 'Current live template' : 'Live editor with premium templates'}</span>
+            <span className="nav-centerpiece-label">{isPreview ? activeTemplate : 'CV Craft Studio'}</span>
+            <span className="nav-centerpiece-sub">{isPreview ? 'Current live template' : 'Craft polished resumes with premium templates'}</span>
           </div>
         </div>
       </div>
