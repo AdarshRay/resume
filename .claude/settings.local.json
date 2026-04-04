@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npx --yes create-vite@latest temp-project --template react)",
+      "Bash(cp -r temp-project/* .)",
+      "Bash(cp temp-project/.gitignore .)",
+      "Bash(cp temp-project/.eslintrc.cjs .)",
+      "Bash(rm -rf temp-project)",
+      "Bash(npm install:*)",
+      "Bash(rm -f src/App.css)",
+      "Bash(rm -rf src/assets)",
+      "Bash(\"/c/Users/rayad/OneDrive/Documents/Resume Builder/public/favicon.svg\":*)",
+      "Bash(pkill -f \"vite\")",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(pkill -f \"node.*vite\")",
+      "Bash(rm -rf src/*)",
+      "Bash(mkdir -p src/utils src/components src/templates src/panels src/pages)",
+      "Bash(find '/c/Users/rayad/OneDrive/Documents/Resume Builder/src' -name *.jsx -o -name *.js -o -name *.css)",
+      "Bash(pkill -f \"vite.*5173\")",
+      "Bash(pkill -f vite)",
+      "Bash(lsof -ti:5173)",
+      "Bash(xargs kill:*)",
+      "Bash(lsof -ti:5174)",
+      "Bash(lsof -ti:5175)",
+      "Bash(node -e \":*)",
+      "Bash(find 'C:/Users/rayad/OneDrive/Documents/Resume Builder/src' -name *.jsx -type f)",
+      "Bash(npx vite:*)",
+      "Bash(node test_parse.mjs)",
+      "Bash(sed -i \"s/work_history: ''experience'',/work_history: ''experience'', work: ''experience'',/\" test_parse.mjs)",
+      "Bash(sed -i \"s/''work\\\\\\\\\\\\\\\\s\\\\*\\(?:experience|history\\)'', ''experience''/''work\\\\\\\\s*\\(?:experience|history\\)'', ''work'', ''experience''/\" test_parse.mjs)",
+      "Bash(node test_parse2.mjs)",
+      "Bash(kill %1)",
+      "Bash(ls -la \"C:\\\\Users\\\\rayad\\\\OneDrive\\\\Documents\\\\Resume Builder\\\\src\\\\panels\"\" 2>/dev/null || echo \"Directory not found \")",
+      "Bash(find /c/Users/rayad/OneDrive/Documents/Resume Builder/src/panels -type f -name *.jsx)",
+      "Bash(find 'C:\\\\Users\\\\rayad\\\\OneDrive\\\\Documents\\\\Resume Builder/src' -type f \\\\\\(-name *.jsx -o -name *.js \\\\\\))"
+    ]
+  }
+}
