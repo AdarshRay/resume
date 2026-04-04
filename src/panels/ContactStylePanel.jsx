@@ -86,11 +86,11 @@ function BoxedRowsPreview({ active }) {
   const c = active ? '#00E5A0' : '#555';
   return (
     <svg width="36" height="24" viewBox="0 0 36 24">
-      <rect x="2" y="1" width="32" height="6" rx="2" fill={c} opacity=".08" stroke={c} strokeWidth=".5" opacity=".2" />
+      <rect x="2" y="1" width="32" height="6" rx="2" fill={c} opacity=".2" stroke={c} strokeWidth=".5" />
       <rect x="6" y="3" width="14" height="2" rx="1" fill={c} opacity=".5" />
-      <rect x="2" y="9" width="32" height="6" rx="2" fill={c} opacity=".06" stroke={c} strokeWidth=".5" opacity=".15" />
+      <rect x="2" y="9" width="32" height="6" rx="2" fill={c} opacity=".15" stroke={c} strokeWidth=".5" />
       <rect x="6" y="11" width="12" height="2" rx="1" fill={c} opacity=".4" />
-      <rect x="2" y="17" width="32" height="6" rx="2" fill={c} opacity=".04" stroke={c} strokeWidth=".5" opacity=".1" />
+      <rect x="2" y="17" width="32" height="6" rx="2" fill={c} opacity=".1" stroke={c} strokeWidth=".5" />
       <rect x="6" y="19" width="16" height="2" rx="1" fill={c} opacity=".3" />
     </svg>
   );

@@ -62,11 +62,11 @@ function CardsPreview({ active }) {
   const c = active ? '#00E5A0' : '#555';
   return (
     <svg width="36" height="24" viewBox="0 0 36 24">
-      <rect x="2" y="1" width="32" height="10" rx="2" fill={c} opacity=".08" stroke={c} strokeWidth=".5" opacity=".2" />
+      <rect x="2" y="1" width="32" height="10" rx="2" fill={c} opacity=".2" stroke={c} strokeWidth=".5" />
       <line x1="4" y1="1" x2="4" y2="11" stroke={c} strokeWidth="1.5" opacity=".5" />
       <rect x="7" y="3" width="16" height="2" rx="1" fill={c} opacity=".6" />
       <rect x="7" y="7" width="12" height="1.5" rx=".75" fill={c} opacity=".3" />
-      <rect x="2" y="13" width="32" height="10" rx="2" fill={c} opacity=".06" stroke={c} strokeWidth=".5" opacity=".15" />
+      <rect x="2" y="13" width="32" height="10" rx="2" fill={c} opacity=".15" stroke={c} strokeWidth=".5" />
       <line x1="4" y1="13" x2="4" y2="23" stroke={c} strokeWidth="1.5" opacity=".35" />
       <rect x="7" y="15" width="14" height="2" rx="1" fill={c} opacity=".45" />
       <rect x="7" y="19" width="10" height="1.5" rx=".75" fill={c} opacity=".25" />

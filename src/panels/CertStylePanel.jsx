@@ -61,11 +61,11 @@ function BadgePreview({ active }) {
   const c = active ? '#00E5A0' : '#555';
   return (
     <svg width="36" height="24" viewBox="0 0 36 24">
-      <rect x="1" y="3" width="16" height="7" rx="3.5" fill={c} opacity=".15" stroke={c} strokeWidth=".5" opacity=".3" />
+      <rect x="1" y="3" width="16" height="7" rx="3.5" fill={c} opacity=".3" stroke={c} strokeWidth=".5" />
       <rect x="4" y="5.5" width="10" height="2" rx="1" fill={c} opacity=".5" />
-      <rect x="19" y="3" width="16" height="7" rx="3.5" fill={c} opacity=".1" stroke={c} strokeWidth=".5" opacity=".25" />
+      <rect x="19" y="3" width="16" height="7" rx="3.5" fill={c} opacity=".25" stroke={c} strokeWidth=".5" />
       <rect x="22" y="5.5" width="10" height="2" rx="1" fill={c} opacity=".4" />
-      <rect x="1" y="14" width="18" height="7" rx="3.5" fill={c} opacity=".08" stroke={c} strokeWidth=".5" opacity=".2" />
+      <rect x="1" y="14" width="18" height="7" rx="3.5" fill={c} opacity=".2" stroke={c} strokeWidth=".5" />
       <rect x="4" y="16.5" width="12" height="2" rx="1" fill={c} opacity=".35" />
     </svg>
   );
