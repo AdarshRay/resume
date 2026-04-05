@@ -4,8 +4,20 @@ import LandingPage from './pages/LandingPage';
 import UploadPage from './pages/UploadPage';
 import GeneratingPage from './pages/GeneratingPage';
 import EditorPage from './pages/EditorPage';
+import { RichTextToolbarProvider } from './components/RichTextToolbarContext';
 import safe from './utils/safeData';
 import { rewriteTextWithAI } from './utils/rewriteWithAI';
+import { analyzeJobFit } from './utils/ats';
+import { buildCoverLetter, buildLinkedInSummary } from './utils/companionDocs';
+import {
+  createProjectRecord,
+  createProjectSnapshot,
+  extractProjectName,
+  loadWorkspace,
+  parseImportedProject,
+  saveWorkspace,
+  serializeProjectForExport,
+} from './utils/workspace';
 
 const THEME_KEY = 'resumeBuilder_theme';
 function loadTheme() {
@@ -17,6 +29,7 @@ const DEFAULT_COLORS = { accent: '#C9A84C', sidebar: '#1B2A4A', heading: '#1B2A4
 
 const DEFAULT_SECTION_ORDER = ['summary', 'experience'];
 const DEFAULT_SIDEBAR_ORDER = ['skills', 'education', 'certifications'];
+const STORAGE_KEY = 'resumeBuilder_state';
 
 // Per-template section placement rules
 // "main" sections appear in the main/left content area; "side" in sidebar/right
@@ -48,9 +61,10 @@ function arraysEqual(a = [], b = []) {
  * Ensures every built-in section is present in exactly one array,
  * enforces main-only rules, and recovers dropped sections.
  */
-function validateSectionPlacement(mainArr, sideArr, template) {
-  const main = [...mainArr];
-  const side = [...sideArr];
+function validateSectionPlacement(mainArr, sideArr, template, hiddenSections = []) {
+  const hidden = new Set(hiddenSections);
+  const main = [...mainArr].filter((id) => !hidden.has(id));
+  const side = [...sideArr].filter((id) => !hidden.has(id));
   const isTwoCol = TWO_COLUMN_TEMPLATES.includes(template);
   const defaults = TEMPLATE_SECTION_DEFAULTS[template] || TEMPLATE_SECTION_DEFAULTS['executive-navy'];
 
@@ -71,6 +85,7 @@ function validateSectionPlacement(mainArr, sideArr, template) {
 
   // 2. Recover missing built-in sections (insert at correct default position, not end)
   for (const id of ALL_BUILTIN_SECTIONS) {
+    if (hidden.has(id)) continue;
     if (!main.includes(id) && !side.includes(id)) {
       // Put it where the template defaults say it should go, at the right position
       if (defaults.main.includes(id)) {
@@ -95,6 +110,13 @@ function validateSectionPlacement(mainArr, sideArr, template) {
 
   // 3. Remove duplicates (section in both arrays — keep it where it belongs per defaults)
   for (const id of ALL_BUILTIN_SECTIONS) {
+    if (hidden.has(id)) {
+      const mainIdx = main.indexOf(id);
+      const sideIdx = side.indexOf(id);
+      if (mainIdx !== -1) main.splice(mainIdx, 1);
+      if (sideIdx !== -1) side.splice(sideIdx, 1);
+      continue;
+    }
     if (main.includes(id) && side.includes(id)) {
       if (defaults.main.includes(id)) {
         side.splice(side.indexOf(id), 1);
@@ -179,27 +201,30 @@ function createEmptyProjectEntry() {
   };
 }
 
-const STORAGE_KEY = 'resumeBuilder_state';
-
-function loadSaved() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch { return null; }
-}
-
-const saved = loadSaved();
+const initialWorkspace = loadWorkspace();
+const initialActiveProject = initialWorkspace.projects.find((project) => project.id === initialWorkspace.activeProjectId) || null;
+const initialSnapshot = initialActiveProject?.snapshot || null;
 
 // Validate persisted section placement on load (repairs stale state from previous sessions)
-const _savedTemplate = saved?.selectedTemplate ?? DEFAULT_TEMPLATE;
-const _validatedPlacement = saved?.sectionOrder
-  ? validateSectionPlacement(saved.sectionOrder, saved.sidebarOrder || DEFAULT_SIDEBAR_ORDER, _savedTemplate)
+const _savedTemplate = initialSnapshot?.selectedTemplate ?? DEFAULT_TEMPLATE;
+const _savedHiddenSections = initialSnapshot?.hiddenSections ?? [];
+const _validatedPlacement = initialSnapshot?.sectionOrder
+  ? validateSectionPlacement(initialSnapshot.sectionOrder, initialSnapshot.sidebarOrder || DEFAULT_SIDEBAR_ORDER, _savedTemplate, _savedHiddenSections)
   : null;
 
 export default function App() {
   const [theme, setTheme] = useState(loadTheme);
   const [uploadStartMode, setUploadStartMode] = useState('form');
+  const [workspaceProjects, setWorkspaceProjects] = useState(initialWorkspace.projects);
+  const [activeProjectId, setActiveProjectId] = useState(initialWorkspace.activeProjectId);
+  const [jobDescription, setJobDescription] = useState(initialSnapshot?.jobDescription ?? '');
+  const [coverLetter, setCoverLetter] = useState(initialSnapshot?.coverLetter ?? '');
+  const [linkedInSummary, setLinkedInSummary] = useState(initialSnapshot?.linkedInSummary ?? '');
+  const [companionLoading, setCompanionLoading] = useState(false);
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const isApplyingSnapshotRef = useRef(false);
+  const historyReadyRef = useRef(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -210,34 +235,35 @@ export default function App() {
     setTheme(t => t === 'dark' ? 'light' : 'dark');
   }, []);
 
-  const [step, setStep] = useState(saved?.resumeData ? 'preview' : 'landing');
-  const [resumeData, setResumeData] = useState(saved?.resumeData ?? null);
-  const [selectedTemplate, setSelectedTemplate] = useState(saved?.selectedTemplate ?? DEFAULT_TEMPLATE);
-  const [photoUrl, setPhotoUrl] = useState(saved?.photoUrl ?? null);
-  const [photoSettings, setPhotoSettings] = useState(saved?.photoSettings ?? { zoom: 100, posX: 50, posY: 50 });
-  const [photoShape, setPhotoShape] = useState(saved?.photoShape ?? 'square');
-  const [colors, setColors] = useState(saved?.colors ?? DEFAULT_COLORS);
-  const [globalFont, setGlobalFont] = useState(saved?.globalFont ?? { size: null, family: null });
+  const [step, setStep] = useState(initialSnapshot?.resumeData ? 'preview' : 'landing');
+  const [resumeData, setResumeData] = useState(initialSnapshot?.resumeData ?? null);
+  const [selectedTemplate, setSelectedTemplate] = useState(initialSnapshot?.selectedTemplate ?? DEFAULT_TEMPLATE);
+  const [photoUrl, setPhotoUrl] = useState(initialSnapshot?.photoUrl ?? null);
+  const [photoSettings, setPhotoSettings] = useState(initialSnapshot?.photoSettings ?? { zoom: 100, posX: 50, posY: 50 });
+  const [photoShape, setPhotoShape] = useState(initialSnapshot?.photoShape ?? 'square');
+  const [colors, setColors] = useState(initialSnapshot?.colors ?? DEFAULT_COLORS);
+  const [globalFont, setGlobalFont] = useState(initialSnapshot?.globalFont ?? { size: null, family: null });
   const [progress, setProgress] = useState(0);
   const [sectionOrder, setSectionOrder] = useState(_validatedPlacement?.main ?? DEFAULT_SECTION_ORDER);
   const [sidebarOrder, setSidebarOrder] = useState(_validatedPlacement?.side ?? DEFAULT_SIDEBAR_ORDER);
   const [sectionLayout, setSectionLayout] = useState(() => {
     if (!_validatedPlacement) return DEFAULT_SECTION_LAYOUT;
     // Merge validated placement into existing layout (preserves page-2 assignments for other sections)
-    const base = saved?.sectionLayout ? { ...saved.sectionLayout } : {};
+    const base = initialSnapshot?.sectionLayout ? { ...initialSnapshot.sectionLayout } : {};
     _validatedPlacement.main.forEach((id, i) => { base[id] = { ...base[id], page: 1, column: 'main', order: i }; });
     _validatedPlacement.side.forEach((id, i) => { base[id] = { ...base[id], page: 1, column: 'side', order: i }; });
     return base;
   });
-  const [extraPages, setExtraPages] = useState(saved?.extraPages ?? 0);
+  const [extraPages, setExtraPages] = useState(initialSnapshot?.extraPages ?? 0);
   // Per-page layout mode: 'full-width' (default) or 'same-as-primary'
-  const [pageLayoutModes, setPageLayoutModes] = useState(saved?.pageLayoutModes ?? {});
+  const [pageLayoutModes, setPageLayoutModes] = useState(initialSnapshot?.pageLayoutModes ?? {});
   // Per-page sidebar visibility: true (default) or false
-  const [pageSidebarVisible, setPageSidebarVisible] = useState(saved?.pageSidebarVisible ?? {});
-  const [styleSettings, setStyleSettings] = useState(saved?.styleSettings ?? {});
+  const [pageSidebarVisible, setPageSidebarVisible] = useState(initialSnapshot?.pageSidebarVisible ?? {});
+  const [styleSettings, setStyleSettings] = useState(initialSnapshot?.styleSettings ?? {});
   // User-overridden display names for built-in sections (e.g. { summary: 'About Me' })
   // Empty object = use each template's default labels
-  const [sectionLabels, setSectionLabels] = useState(saved?.sectionLabels ?? {});
+  const [sectionLabels, setSectionLabels] = useState(initialSnapshot?.sectionLabels ?? {});
+  const [hiddenSections, setHiddenSections] = useState(initialSnapshot?.hiddenSections ?? []);
 
   // Derive current template's styles (stored values override defaults)
   const currentStyles = useMemo(() => {
@@ -263,6 +289,104 @@ export default function App() {
   const setContactStyle = useMemo(() => makeStyleSetter('contactStyle'), [makeStyleSetter]);
   const setEducationStyle = useMemo(() => makeStyleSetter('educationStyle'), [makeStyleSetter]);
   const setCertificationStyle = useMemo(() => makeStyleSetter('certificationStyle'), [makeStyleSetter]);
+  const activeProject = useMemo(
+    () => workspaceProjects.find((project) => project.id === activeProjectId) || null,
+    [workspaceProjects, activeProjectId]
+  );
+  const currentProjectName = activeProject?.name || extractProjectName({ resumeData });
+
+  const buildCurrentSnapshot = useCallback(() => createProjectSnapshot({
+    resumeData,
+    selectedTemplate,
+    photoUrl,
+    photoSettings,
+    photoShape,
+    colors,
+    globalFont,
+    styleSettings,
+    sectionLabels,
+    hiddenSections,
+    sectionOrder,
+    sidebarOrder,
+    sectionLayout,
+    extraPages,
+    pageLayoutModes,
+    pageSidebarVisible,
+    jobDescription,
+    coverLetter,
+    linkedInSummary,
+  }), [
+    resumeData,
+    selectedTemplate,
+    photoUrl,
+    photoSettings,
+    photoShape,
+    colors,
+    globalFont,
+    styleSettings,
+    sectionLabels,
+    hiddenSections,
+    sectionOrder,
+    sidebarOrder,
+    sectionLayout,
+    extraPages,
+    pageLayoutModes,
+    pageSidebarVisible,
+    jobDescription,
+    coverLetter,
+    linkedInSummary,
+  ]);
+
+  const applyProjectSnapshot = useCallback((snapshot, options = {}) => {
+    const safeSnapshot = createProjectSnapshot(snapshot);
+    const validated = validateSectionPlacement(
+      safeSnapshot.sectionOrder || DEFAULT_SECTION_ORDER,
+      safeSnapshot.sidebarOrder || DEFAULT_SIDEBAR_ORDER,
+      safeSnapshot.selectedTemplate || DEFAULT_TEMPLATE,
+      safeSnapshot.hiddenSections || []
+    );
+
+    isApplyingSnapshotRef.current = true;
+    setResumeData(safeSnapshot.resumeData ? safe(safeSnapshot.resumeData) : null);
+    setSelectedTemplate(safeSnapshot.selectedTemplate || DEFAULT_TEMPLATE);
+    setPhotoUrl(safeSnapshot.photoUrl ?? null);
+    setPhotoSettings(safeSnapshot.photoSettings || { zoom: 100, posX: 50, posY: 50 });
+    setPhotoShape(safeSnapshot.photoShape || 'square');
+    setColors(safeSnapshot.colors || DEFAULT_COLORS);
+    setGlobalFont(safeSnapshot.globalFont || { size: null, family: null });
+    setStyleSettings(safeSnapshot.styleSettings || {});
+    setSectionLabels(safeSnapshot.sectionLabels || {});
+    setHiddenSections(safeSnapshot.hiddenSections || []);
+    setSectionOrder(validated.main);
+    setSidebarOrder(validated.side);
+    setSectionLayout(() => {
+      const base = safeSnapshot.sectionLayout ? { ...safeSnapshot.sectionLayout } : {};
+      validated.main.forEach((id, i) => { base[id] = { ...base[id], page: 1, column: 'main', order: i }; });
+      validated.side.forEach((id, i) => { base[id] = { ...base[id], page: 1, column: 'side', order: i }; });
+      return base;
+    });
+    setExtraPages(safeSnapshot.extraPages ?? 0);
+    setPageLayoutModes(safeSnapshot.pageLayoutModes || {});
+    setPageSidebarVisible(safeSnapshot.pageSidebarVisible || {});
+    setJobDescription(safeSnapshot.jobDescription || '');
+    setCoverLetter(safeSnapshot.coverLetter || '');
+    setLinkedInSummary(safeSnapshot.linkedInSummary || '');
+    setStep(safeSnapshot.resumeData ? 'preview' : 'landing');
+
+    window.setTimeout(() => {
+      isApplyingSnapshotRef.current = false;
+      if (options.resetHistory !== false) {
+        const normalizedSnapshot = createProjectSnapshot({
+          ...safeSnapshot,
+          sectionOrder: validated.main,
+          sidebarOrder: validated.side,
+        });
+        setHistory([normalizedSnapshot]);
+        setHistoryIndex(0);
+        historyReadyRef.current = true;
+      }
+    }, 0);
+  }, []);
 
   const syncValidatedPlacement = useCallback((main, side) => {
     setSectionOrder(main);
@@ -275,17 +399,25 @@ export default function App() {
     });
   }, []);
 
+  const removeSectionFromLayout = useCallback((sectionId) => {
+    setSectionLayout(prev => {
+      const next = { ...prev };
+      delete next[sectionId];
+      return next;
+    });
+  }, []);
+
   // Apply validated section placement for a given template (resets to clean defaults)
   const applyValidatedPlacement = useCallback((tmpl) => {
     const defaults = TEMPLATE_SECTION_DEFAULTS[tmpl] || TEMPLATE_SECTION_DEFAULTS['executive-navy'];
-    const { main, side } = validateSectionPlacement(defaults.main, defaults.side, tmpl);
+    const { main, side } = validateSectionPlacement(defaults.main, defaults.side, tmpl, hiddenSections);
     setSectionOrder(main);
     setSidebarOrder(side);
     setSectionLayout(buildSectionLayout(main, side));
     setExtraPages(0);
     setPageLayoutModes({});
     setPageSidebarVisible({});
-  }, []);
+  }, [hiddenSections]);
 
   // When template changes, re-validate section placement (preserve user reordering within columns,
   // but enforce main-only rules and recover any missing sections)
@@ -295,12 +427,12 @@ export default function App() {
     if (prevTemplateRef.current === selectedTemplate) return;
     prevTemplateRef.current = selectedTemplate;
     // Re-validate current placement against the new template's rules
-    const { main, side } = validateSectionPlacement(sectionOrder, sidebarOrder, selectedTemplate);
+    const { main, side } = validateSectionPlacement(sectionOrder, sidebarOrder, selectedTemplate, hiddenSections);
     if (!arraysEqual(main, sectionOrder) || !arraysEqual(side, sidebarOrder)) {
       const timer = setTimeout(() => syncValidatedPlacement(main, side), 0);
       return () => clearTimeout(timer);
     }
-  }, [selectedTemplate, sectionOrder, sidebarOrder, syncValidatedPlacement]);
+  }, [selectedTemplate, sectionOrder, sidebarOrder, hiddenSections, syncValidatedPlacement]);
 
   useEffect(() => {
     if (step !== 'preview' || !resumeData) {
@@ -308,7 +440,7 @@ export default function App() {
       return;
     }
 
-    const { main, side } = validateSectionPlacement(sectionOrder, sidebarOrder, selectedTemplate);
+    const { main, side } = validateSectionPlacement(sectionOrder, sidebarOrder, selectedTemplate, hiddenSections);
     const needsRepair = !arraysEqual(main, sectionOrder) || !arraysEqual(side, sidebarOrder);
 
     if (!needsRepair) {
@@ -322,7 +454,59 @@ export default function App() {
 
     const timer = setTimeout(() => syncValidatedPlacement(main, side), 0);
     return () => clearTimeout(timer);
-  }, [step, resumeData, selectedTemplate, sectionOrder, sidebarOrder, syncValidatedPlacement]);
+  }, [step, resumeData, selectedTemplate, sectionOrder, sidebarOrder, hiddenSections, syncValidatedPlacement]);
+
+  const persistedWorkspaceRef = useRef('');
+  useEffect(() => {
+    const workspace = { projects: workspaceProjects, activeProjectId };
+    const raw = JSON.stringify(workspace);
+    if (raw === persistedWorkspaceRef.current) return;
+    persistedWorkspaceRef.current = raw;
+    saveWorkspace(workspace);
+  }, [workspaceProjects, activeProjectId]);
+
+  useEffect(() => {
+    if (historyReadyRef.current) return;
+    if (!resumeData && !initialSnapshot) return;
+    const seed = buildCurrentSnapshot();
+    setHistory([seed]);
+    setHistoryIndex(0);
+    historyReadyRef.current = true;
+  }, [buildCurrentSnapshot, resumeData]);
+
+  useEffect(() => {
+    if (!historyReadyRef.current) return;
+    if (step !== 'preview' || !resumeData) return;
+    if (isApplyingSnapshotRef.current) return;
+    const snapshot = buildCurrentSnapshot();
+    const serialized = JSON.stringify(snapshot);
+    const currentSerialized = history[historyIndex] ? JSON.stringify(history[historyIndex]) : '';
+    if (serialized === currentSerialized) return;
+
+    const nextHistory = [...history.slice(0, historyIndex + 1), snapshot].slice(-80);
+    setHistory(nextHistory);
+    setHistoryIndex(nextHistory.length - 1);
+  }, [buildCurrentSnapshot, history, historyIndex, resumeData, step]);
+
+  useEffect(() => {
+    if (!resumeData || !activeProjectId) return;
+    if (isApplyingSnapshotRef.current) return;
+
+    const snapshot = buildCurrentSnapshot();
+    setWorkspaceProjects((prev) => prev.map((project) => project.id === activeProjectId ? {
+      ...project,
+      updatedAt: new Date().toISOString(),
+      snapshot,
+    } : project));
+  }, [activeProjectId, buildCurrentSnapshot, resumeData]);
+
+  useEffect(() => {
+    if (!resumeData || activeProjectId) return;
+    const snapshot = buildCurrentSnapshot();
+    const project = createProjectRecord(snapshot, { name: extractProjectName(snapshot) });
+    setWorkspaceProjects((prev) => [...prev, project]);
+    setActiveProjectId(project.id);
+  }, [activeProjectId, buildCurrentSnapshot, resumeData]);
 
   const mounted = useRef(false);
   useEffect(() => {
@@ -413,6 +597,9 @@ ${text}`
       clearInterval(t);
       setProgress(100);
       setResumeData(safe(parsed));
+      setJobDescription('');
+      setCoverLetter('');
+      setLinkedInSummary('');
       applyValidatedPlacement(selectedTemplate);
       setTimeout(() => setStep('preview'), 300);
     } catch (e) {
@@ -420,6 +607,9 @@ ${text}`
       clearInterval(t);
       setProgress(100);
       setResumeData(safe(fallbackParse(text)));
+      setJobDescription('');
+      setCoverLetter('');
+      setLinkedInSummary('');
       applyValidatedPlacement(selectedTemplate);
       setTimeout(() => setStep('preview'), 300);
     }
@@ -427,6 +617,62 @@ ${text}`
 
   // Edit handler
   const handleEdit = useCallback((field, payload = {}) => {
+    const customSectionId = field === 'custom_section_add' ? Date.now().toString() : null;
+    if (field === 'section_hide') {
+      const sectionId = payload.sectionId;
+      const nextHidden = Array.from(new Set([...(hiddenSections || []), sectionId]));
+      setHiddenSections(nextHidden);
+      const validated = validateSectionPlacement(sectionOrder, sidebarOrder, selectedTemplate, nextHidden);
+      syncValidatedPlacement(validated.main, validated.side);
+      removeSectionFromLayout(sectionId);
+      return;
+    }
+    if (field === 'section_show') {
+      const sectionId = payload.sectionId;
+      const nextHidden = (hiddenSections || []).filter((id) => id !== sectionId);
+      setHiddenSections(nextHidden);
+      const validated = validateSectionPlacement(sectionOrder, sidebarOrder, selectedTemplate, nextHidden);
+      syncValidatedPlacement(validated.main, validated.side);
+      return;
+    }
+    if (field === 'custom_section_del') {
+      const dragId = `cs_${payload.id}`;
+      setSectionOrder(prev => prev.filter((sectionId) => sectionId !== dragId));
+      setSidebarOrder(prev => prev.filter((sectionId) => sectionId !== dragId));
+      removeSectionFromLayout(dragId);
+    }
+    if (field === 'custom_section_add') {
+      const dragId = `cs_${customSectionId}`;
+      const nextColumn = payload.placement === 'side' ? 'side' : 'main';
+
+      if (nextColumn === 'side') {
+        setSidebarOrder(prev => prev.includes(dragId) ? prev : [...prev, dragId]);
+        setSectionOrder(prev => prev.filter(sectionId => sectionId !== dragId));
+      } else {
+        setSectionOrder(prev => prev.includes(dragId) ? prev : [...prev, dragId]);
+        setSidebarOrder(prev => prev.filter(sectionId => sectionId !== dragId));
+      }
+
+      setSectionLayout(prev => {
+        const mainOrder = nextColumn === 'main'
+          ? sectionOrder.filter(sectionId => sectionId !== dragId).length
+          : (prev[dragId]?.column === 'main' ? Math.max((prev[dragId]?.order ?? 0) - 1, 0) : 0);
+        const sideOrder = nextColumn === 'side'
+          ? sidebarOrder.filter(sectionId => sectionId !== dragId).length
+          : (prev[dragId]?.column === 'side' ? Math.max((prev[dragId]?.order ?? 0) - 1, 0) : 0);
+
+        return {
+          ...prev,
+          [dragId]: {
+            ...(prev[dragId] || {}),
+            page: 1,
+            column: nextColumn,
+            order: nextColumn === 'side' ? sideOrder : mainOrder,
+          },
+        };
+      });
+    }
+
     setResumeData(prev => {
       const d = { ...safe(prev) };
       const { i, j, v, id } = payload;
@@ -520,7 +766,7 @@ ${text}`
 
         case 'custom_section_add': {
           const newSec = {
-            id: Date.now().toString(),
+            id: customSectionId,
             title: payload.title,
             placement: payload.placement,
             kind: payload.kind,
@@ -601,7 +847,7 @@ ${text}`
 
       return d;
     });
-  }, []);
+  }, [hiddenSections, removeSectionFromLayout, sectionOrder, selectedTemplate, sidebarOrder, syncValidatedPlacement]);
 
   const handleAIRewrite = useCallback(async (scope, payload = {}) => {
     if (!resumeData) return;
@@ -711,72 +957,266 @@ ${text}`
   const handleStructuredBuild = useCallback((structuredData) => {
     setResumeData(safe(structuredData));
     setProgress(100);
+    setJobDescription('');
+    setCoverLetter('');
+    setLinkedInSummary('');
     applyValidatedPlacement(selectedTemplate);
     setTimeout(() => setStep('preview'), 0);
   }, [applyValidatedPlacement, selectedTemplate]);
 
+  const atsReport = useMemo(
+    () => analyzeJobFit(safe(resumeData), jobDescription),
+    [resumeData, jobDescription]
+  );
+
+  const handleUndo = useCallback(() => {
+    if (historyIndex <= 0) return;
+    const nextIndex = historyIndex - 1;
+    setHistoryIndex(nextIndex);
+    applyProjectSnapshot(history[nextIndex], { resetHistory: false });
+  }, [applyProjectSnapshot, history, historyIndex]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIndex >= history.length - 1) return;
+    const nextIndex = historyIndex + 1;
+    setHistoryIndex(nextIndex);
+    applyProjectSnapshot(history[nextIndex], { resetHistory: false });
+  }, [applyProjectSnapshot, history, historyIndex]);
+
+  useEffect(() => {
+    if (step !== 'preview') return;
+    const handleKeyDown = (event) => {
+      const target = event.target;
+      if (target?.isContentEditable || target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+      const modifier = event.ctrlKey || event.metaKey;
+      if (!modifier) return;
+
+      if (event.key.toLowerCase() === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        handleUndo();
+      } else if (event.key.toLowerCase() === 'y' || (event.key.toLowerCase() === 'z' && event.shiftKey)) {
+        event.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleRedo, handleUndo, step]);
+
+  const ensureActiveProject = useCallback((snapshot, nameOverride) => {
+    if (activeProjectId) return activeProjectId;
+    const project = createProjectRecord(snapshot, { name: nameOverride || extractProjectName(snapshot) });
+    setWorkspaceProjects((prev) => [...prev, project]);
+    setActiveProjectId(project.id);
+    return project.id;
+  }, [activeProjectId]);
+
+  const handleCreateProject = useCallback(() => {
+    const snapshot = buildCurrentSnapshot();
+    const project = createProjectRecord(snapshot, {
+      name: `Resume ${workspaceProjects.length + 1}`,
+    });
+    setWorkspaceProjects((prev) => [...prev, project]);
+    setActiveProjectId(project.id);
+    applyProjectSnapshot(project.snapshot);
+  }, [applyProjectSnapshot, buildCurrentSnapshot, workspaceProjects.length]);
+
+  const handleDuplicateProject = useCallback(() => {
+    const snapshot = buildCurrentSnapshot();
+    const project = createProjectRecord(snapshot, {
+      name: `${currentProjectName} Copy`,
+    });
+    setWorkspaceProjects((prev) => [...prev, project]);
+    setActiveProjectId(project.id);
+    applyProjectSnapshot(project.snapshot);
+  }, [applyProjectSnapshot, buildCurrentSnapshot, currentProjectName]);
+
+  const handleSelectProject = useCallback((projectId) => {
+    const project = workspaceProjects.find((item) => item.id === projectId);
+    if (!project) return;
+    setActiveProjectId(project.id);
+    applyProjectSnapshot(project.snapshot);
+  }, [applyProjectSnapshot, workspaceProjects]);
+
+  const handleRenameProject = useCallback((name) => {
+    const nextName = String(name || '').trim();
+    if (!nextName || !activeProjectId) return;
+    setWorkspaceProjects((prev) => prev.map((project) => project.id === activeProjectId ? {
+      ...project,
+      name: nextName,
+      updatedAt: new Date().toISOString(),
+    } : project));
+  }, [activeProjectId]);
+
+  const handleDeleteProject = useCallback(() => {
+    if (!activeProjectId) return;
+    setWorkspaceProjects((prev) => {
+      const remaining = prev.filter((project) => project.id !== activeProjectId);
+      const nextActive = remaining[0] || null;
+      setActiveProjectId(nextActive?.id || null);
+      if (nextActive) {
+        applyProjectSnapshot(nextActive.snapshot);
+      } else {
+        applyProjectSnapshot(createProjectSnapshot({ resumeData: null }), { resetHistory: false });
+        historyReadyRef.current = false;
+        setHistory([]);
+        setHistoryIndex(-1);
+      }
+      return remaining;
+    });
+  }, [activeProjectId, applyProjectSnapshot]);
+
+  const handleExportProject = useCallback(() => {
+    const snapshot = buildCurrentSnapshot();
+    const exportProject = activeProject || createProjectRecord(snapshot, { name: currentProjectName });
+    const blob = new Blob([serializeProjectForExport({
+      ...exportProject,
+      snapshot,
+      name: exportProject.name || currentProjectName,
+    })], { type: 'application/json' });
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = href;
+    anchor.download = `${(exportProject.name || 'cv-craft-project').replace(/[^\w.-]+/g, '_')}.cvcraft.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(href);
+  }, [activeProject, buildCurrentSnapshot, currentProjectName]);
+
+  const handleImportProject = useCallback(async (file) => {
+    if (!file) return;
+    const raw = await file.text();
+    const importedProject = parseImportedProject(raw);
+    setWorkspaceProjects((prev) => [...prev, importedProject]);
+    setActiveProjectId(importedProject.id);
+    applyProjectSnapshot(importedProject.snapshot);
+  }, [applyProjectSnapshot]);
+
+  const handleGenerateCompanionDocs = useCallback(async () => {
+    if (!resumeData) return;
+    setCompanionLoading(true);
+    try {
+      const baseCoverLetter = buildCoverLetter(safe(resumeData), jobDescription, atsReport);
+      const baseLinkedIn = buildLinkedInSummary(safe(resumeData), jobDescription, atsReport);
+      const [polishedCoverLetter, polishedLinkedIn] = await Promise.all([
+        rewriteTextWithAI(baseCoverLetter, { scope: 'section', context: 'Cover letter for a job application' }),
+        rewriteTextWithAI(baseLinkedIn, { scope: 'section', context: 'LinkedIn About section summary' }),
+      ]);
+      setCoverLetter(polishedCoverLetter || baseCoverLetter);
+      setLinkedInSummary(polishedLinkedIn || baseLinkedIn);
+      ensureActiveProject(buildCurrentSnapshot(), currentProjectName);
+    } finally {
+      setCompanionLoading(false);
+    }
+  }, [atsReport, buildCurrentSnapshot, currentProjectName, ensureActiveProject, jobDescription, resumeData]);
+
   return (
-    <div className="min-h-screen">
-      <Nav
-        onGoHome={goHome}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        step={step}
-        templateName={selectedTemplate}
-      />
-      {step === 'landing' && <LandingPage onStart={handleStartFromLanding} />}
-      {step === 'upload' && (
-        <UploadPage
-          onTextExtracted={generateResume}
-          onPhotoUpload={setPhotoUrl}
-          onStructuredBuild={handleStructuredBuild}
-          initialMode={uploadStartMode}
+    <RichTextToolbarProvider
+      globalFont={globalFont}
+      setGlobalFont={setGlobalFont}
+      colors={colors}
+      setColors={setColors}
+      sectionStyles={{
+        skillStyle,
+        setSkillStyle,
+        contactStyle,
+        setContactStyle,
+        educationStyle,
+        setEducationStyle,
+        certificationStyle,
+        setCertificationStyle,
+      }}
+    >
+      <div className="min-h-screen">
+        <Nav
+          onGoHome={goHome}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          step={step}
+          templateName={selectedTemplate}
+          projectName={currentProjectName}
+          projectCount={workspaceProjects.length}
         />
-      )}
-      {step === 'generating' && <GeneratingPage progress={progress} />}
-      {step === 'preview' && (
-        <EditorPage
-          data={safe(resumeData)}
-          onEdit={handleEdit}
-          template={selectedTemplate}
-          setTemplate={setSelectedTemplate}
-          photo={photoUrl}
-          setPhoto={setPhotoUrl}
-          photoSettings={photoSettings}
-          setPhotoSettings={setPhotoSettings}
-          photoShape={photoShape}
-          setPhotoShape={setPhotoShape}
-          colors={colors}
-          setColors={setColors}
-          globalFont={globalFont}
-          setGlobalFont={setGlobalFont}
-          onReUpload={handleReUpload}
-          sectionOrder={sectionOrder}
-          setSectionOrder={setSectionOrder}
-          sidebarOrder={sidebarOrder}
-          setSidebarOrder={setSidebarOrder}
-          sectionLayout={sectionLayout}
-          setSectionLayout={setSectionLayout}
-          extraPages={extraPages}
-          setExtraPages={setExtraPages}
-          pageLayoutModes={pageLayoutModes}
-          setPageLayoutModes={setPageLayoutModes}
-          pageSidebarVisible={pageSidebarVisible}
-          setPageSidebarVisible={setPageSidebarVisible}
-          skillStyle={skillStyle}
-          setSkillStyle={setSkillStyle}
-          contactStyle={contactStyle}
-          setContactStyle={setContactStyle}
-          educationStyle={educationStyle}
-          setEducationStyle={setEducationStyle}
-          certificationStyle={certificationStyle}
-          setCertificationStyle={setCertificationStyle}
-          sectionLabels={sectionLabels}
-          setSectionLabels={setSectionLabels}
-          onAIRewrite={handleAIRewrite}
-        />
-      )}
-    </div>
+        {step === 'landing' && <LandingPage onStart={handleStartFromLanding} />}
+        {step === 'upload' && (
+          <UploadPage
+            onTextExtracted={generateResume}
+            onPhotoUpload={setPhotoUrl}
+            onStructuredBuild={handleStructuredBuild}
+            initialMode={uploadStartMode}
+          />
+        )}
+        {step === 'generating' && <GeneratingPage progress={progress} />}
+        {step === 'preview' && (
+          <EditorPage
+            data={safe(resumeData)}
+            onEdit={handleEdit}
+            template={selectedTemplate}
+            setTemplate={setSelectedTemplate}
+            photo={photoUrl}
+            setPhoto={setPhotoUrl}
+            photoSettings={photoSettings}
+            setPhotoSettings={setPhotoSettings}
+            photoShape={photoShape}
+            setPhotoShape={setPhotoShape}
+            colors={colors}
+            setColors={setColors}
+            globalFont={globalFont}
+            setGlobalFont={setGlobalFont}
+            onReUpload={handleReUpload}
+            sectionOrder={sectionOrder}
+            setSectionOrder={setSectionOrder}
+            sidebarOrder={sidebarOrder}
+            setSidebarOrder={setSidebarOrder}
+            sectionLayout={sectionLayout}
+            setSectionLayout={setSectionLayout}
+            extraPages={extraPages}
+            setExtraPages={setExtraPages}
+            pageLayoutModes={pageLayoutModes}
+            setPageLayoutModes={setPageLayoutModes}
+            pageSidebarVisible={pageSidebarVisible}
+            setPageSidebarVisible={setPageSidebarVisible}
+            skillStyle={skillStyle}
+            setSkillStyle={setSkillStyle}
+            contactStyle={contactStyle}
+            setContactStyle={setContactStyle}
+            educationStyle={educationStyle}
+            setEducationStyle={setEducationStyle}
+            certificationStyle={certificationStyle}
+            setCertificationStyle={setCertificationStyle}
+            sectionLabels={sectionLabels}
+            hiddenSections={hiddenSections}
+            setSectionLabels={setSectionLabels}
+            onAIRewrite={handleAIRewrite}
+            currentProjectName={currentProjectName}
+            workspaceProjects={workspaceProjects}
+            activeProjectId={activeProjectId}
+            onSelectProject={handleSelectProject}
+            onCreateProject={handleCreateProject}
+            onDuplicateProject={handleDuplicateProject}
+            onDeleteProject={handleDeleteProject}
+            onRenameProject={handleRenameProject}
+            onExportProject={handleExportProject}
+            onImportProject={handleImportProject}
+            canUndo={historyIndex > 0}
+            canRedo={historyIndex >= 0 && historyIndex < history.length - 1}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            jobDescription={jobDescription}
+            onJobDescriptionChange={setJobDescription}
+            atsReport={atsReport}
+            onGenerateCompanionDocs={handleGenerateCompanionDocs}
+            coverLetter={coverLetter}
+            onCoverLetterChange={setCoverLetter}
+            linkedInSummary={linkedInSummary}
+            onLinkedInSummaryChange={setLinkedInSummary}
+            companionLoading={companionLoading}
+          />
+        )}
+      </div>
+    </RichTextToolbarProvider>
   );
 }
 

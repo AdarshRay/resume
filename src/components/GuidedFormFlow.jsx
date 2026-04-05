@@ -89,7 +89,6 @@ export default function GuidedFormFlow({
   setFormStep,
   formSteps,
   completion,
-  savePulse,
   photoName,
   photoRef,
   handlePhoto,
@@ -141,7 +140,7 @@ export default function GuidedFormFlow({
       <div className="upload-page-orb upload-page-orb--mint" />
       <div className="upload-page-orb upload-page-orb--sky" />
 
-      <div className="upload-guided-frame fade-up">
+      <div className="upload-guided-frame">
         <header className="upload-guided-header premium-surface">
           <div className="upload-guided-header-copy">
             <div className="upload-step-chip">Guided Resume Flow</div>
@@ -159,7 +158,7 @@ export default function GuidedFormFlow({
               <div className="upload-guided-progress-track">
                 <div className="upload-guided-progress-bar" style={{ width: `${guidedProgress}%` }} />
               </div>
-              <small>{savePulse ? 'Draft saved locally' : 'Autosaves locally as you go'}</small>
+              <small>Autosaves locally as you go</small>
             </div>
 
             <div className="upload-guided-header-actions">

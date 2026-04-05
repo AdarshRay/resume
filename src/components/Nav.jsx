@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import RichTextToolbarIsland from './RichTextToolbarIsland';
 
 const TEMPLATE_NAMES = {
   'designer-slate': 'Designer Slate',
@@ -9,7 +10,7 @@ const TEMPLATE_NAMES = {
   'clean-slate': 'Clean Slate',
 };
 
-export default function Nav({ onGoHome, theme, onToggleTheme, step, templateName }) {
+export default function Nav({ onGoHome, theme, onToggleTheme, step, templateName, projectName, projectCount = 0 }) {
   const [showLoginMenu, setShowLoginMenu] = useState(false);
   const [user, setUser] = useState(null);
 
@@ -50,12 +51,13 @@ export default function Nav({ onGoHome, theme, onToggleTheme, step, templateName
         </div>
       </button>
 
-      <div className="nav-centerpiece" aria-hidden="true">
+      <div className="nav-centerpiece">
+        <RichTextToolbarIsland />
         <div className="nav-centerpiece-pill">
           <span className="nav-centerpiece-dot" />
           <div className="nav-centerpiece-copy">
             <span className="nav-centerpiece-label">{isPreview ? activeTemplate : 'CV Craft Studio'}</span>
-            <span className="nav-centerpiece-sub">{isPreview ? 'Current live template' : 'Craft polished resumes with premium templates'}</span>
+            <span className="nav-centerpiece-sub">{isPreview ? (projectName || 'Current live template') : 'Craft polished resumes with premium templates'}</span>
           </div>
         </div>
       </div>
@@ -71,7 +73,7 @@ export default function Nav({ onGoHome, theme, onToggleTheme, step, templateName
         {isPreview && (
           <div className="nav-info-chip">
             <span className="nav-info-chip-dot" />
-            <span className="nav-info-chip-value">Saved locally</span>
+            <span className="nav-info-chip-value">{projectCount > 0 ? `${projectCount} local project${projectCount === 1 ? '' : 's'}` : 'Saved locally'}</span>
           </div>
         )}
 

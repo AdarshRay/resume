@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { DndContext } from '@dnd-kit/core';
 import DesignerSlate from '../templates/DesignerSlate';
 import ExecutiveNavy from '../templates/ExecutiveNavy';
@@ -153,7 +153,7 @@ const FEATURES = [
   { title: 'Premium Editing', desc: 'Live templates, drag-and-drop sections, colors, fonts, and polished export-ready layouts.', stat: 'Fully customizable' },
 ];
 
-function LandingPreview({ templateId, scale = CARD_SCALE, featured = false }) {
+const LandingPreview = memo(function LandingPreview({ templateId, scale = CARD_SCALE, featured = false }) {
   const TemplateComp = TEMPLATE_MAP[templateId];
   const colors = TEMPLATE_DEFAULTS[templateId];
   const styles = STYLE_DEFAULTS[templateId];
@@ -206,7 +206,7 @@ function LandingPreview({ templateId, scale = CARD_SCALE, featured = false }) {
       </div>
     </div>
   );
-}
+});
 
 export default function LandingPage({ onStart }) {
   const [chooserOpen, setChooserOpen] = useState(false);

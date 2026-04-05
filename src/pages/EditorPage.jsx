@@ -13,16 +13,15 @@ import TemplatePanel from '../panels/TemplatePanel';
 import PhotoPanel from '../panels/PhotoPanel';
 import FontPanel from '../panels/FontPanel';
 import ColorPanel from '../panels/ColorPanel';
-import SectionPanel from '../panels/SectionPanel';
-import SkillStylePanel from '../panels/SkillStylePanel';
-import ContactStylePanel from '../panels/ContactStylePanel';
-import EducationStylePanel from '../panels/EducationStylePanel';
-import CertStylePanel from '../panels/CertStylePanel';
+import SectionPanel from '../panels/SectionStudioModalPanel';
+import GlobalSettingsDrawer from '../panels/GlobalSettingsDrawer';
 import EducationRenderer from '../components/EducationRenderer';
 import CertificationsRenderer from '../components/CertificationsRenderer';
 import SideSection from '../components/SideSection';
 import MainSection from '../components/MainSection';
 import generatePdf from '../utils/generatePdf';
+import { isStructuredProjectSection } from '../utils/projectSections';
+import { SectionActionsContext } from '../components/SectionActionsContext';
 
 import ExecutiveNavy from '../templates/ExecutiveNavy';
 import BoldCoral from '../templates/BoldCoral';
@@ -134,13 +133,52 @@ export default function EditorPage({
   contactStyle, setContactStyle,
   educationStyle, setEducationStyle,
   certificationStyle, setCertificationStyle,
-  sectionLabels, setSectionLabels,
+  sectionLabels,
+  hiddenSections = [],
   onAIRewrite,
+  currentProjectName,
+  workspaceProjects,
+  activeProjectId,
+  onSelectProject,
+  onCreateProject,
+  onDuplicateProject,
+  onDeleteProject,
+  onRenameProject,
+  onExportProject,
+  onImportProject,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  jobDescription,
+  onJobDescriptionChange,
+  atsReport,
+  onGenerateCompanionDocs,
+  coverLetter,
+  onCoverLetterChange,
+  linkedInSummary,
+  onLinkedInSummaryChange,
+  companionLoading,
 }) {
   const [openPanel, setOpenPanel] = useState(null);
+  const [globalSettingsOpen, setGlobalSettingsOpen] = useState(false);
   const toggle = (p) => setOpenPanel(prev => prev === p ? null : p);
   const [downloading, setDownloading] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(true);
+  const [projectNameDraft, setProjectNameDraft] = useState(currentProjectName || '');
+  const importInputRef = useRef(null);
+  const handleRemoveSection = useCallback((sectionId) => {
+    if (typeof sectionId !== 'string') return;
+    if (sectionId.startsWith('cs_')) {
+      onEdit('custom_section_del', { id: sectionId.slice(3) });
+      return;
+    }
+    onEdit('section_hide', { sectionId });
+  }, [onEdit]);
+
+  useEffect(() => {
+    setProjectNameDraft(currentProjectName || '');
+  }, [currentProjectName]);
   const resumeQuality = useMemo(() => {
     const skillsCount = data?.skills?.filter(Boolean).length || 0;
     const experienceCount = data?.experience?.length || 0;
@@ -190,6 +228,12 @@ export default function EditorPage({
 
   // Track individual experience items moved to pages 2+ (expId → pageNumber)
   const [expPageMap, setExpPageMap] = useState({});
+  const [expGroupPageMap, setExpGroupPageMap] = useState({});
+  const [expBulletPageMap, setExpBulletPageMap] = useState({});
+  const [skillsPageMap, setSkillsPageMap] = useState({});
+  const [educationPageMap, setEducationPageMap] = useState({});
+  const [certPageMap, setCertPageMap] = useState({});
+  const [customItemPageMap, setCustomItemPageMap] = useState({});
 
   const sensors = useSensors(
     useSensor(BlockDragSensor, { activationConstraint: { distance: 5 } })
@@ -254,18 +298,98 @@ export default function EditorPage({
   );
 
   // Experience items per page
+  const materializeExperienceForPage = useCallback((pageNum) => (
+    (data?.experience || []).reduce((acc, exp) => {
+      const basePage = expPageMap[exp._id] || 1;
+      const groupedSections = Array.isArray(exp.sections) ? exp.sections : [];
+      const flatBullets = Array.isArray(exp.bullets) ? exp.bullets : [];
+      const visibleSections = groupedSections.filter((_, sectionIndex) => ((expGroupPageMap[`${exp._id}:group:${sectionIndex}`] || basePage) === pageNum));
+      const visibleBullets = flatBullets.filter((_, bulletIndex) => ((expBulletPageMap[`${exp._id}:bullet:${bulletIndex}`] || basePage) === pageNum));
+
+      if (basePage === pageNum || visibleSections.length > 0 || visibleBullets.length > 0) {
+        acc.push({
+          ...exp,
+          sections: visibleSections,
+          bullets: visibleBullets,
+        });
+      }
+      return acc;
+    }, [])
+  ), [data?.experience, expBulletPageMap, expGroupPageMap, expPageMap]);
+
   const expForPage = useCallback((pageNum) => {
-    if (pageNum === 1) {
-      return (data?.experience || []).filter(e => !expPageMap[e._id]);
-    }
-    return (data?.experience || []).filter(e => expPageMap[e._id] === pageNum);
-  }, [data?.experience, expPageMap]);
+    return materializeExperienceForPage(pageNum);
+  }, [materializeExperienceForPage]);
+
+  const itemsForPage = useCallback((items = [], pageMap = {}, keyForIndex, pageNum = 1) =>
+    items.filter((_, index) => ((pageMap[keyForIndex(index)] || 1) === pageNum)),
+  []);
+
+  const skillsForPage = useCallback((pageNum) =>
+    itemsForPage(data?.skills || [], skillsPageMap, (index) => String(index), pageNum),
+  [data?.skills, itemsForPage, skillsPageMap]);
+
+  const educationForPage = useCallback((pageNum) =>
+    itemsForPage(data?.education || [], educationPageMap, (index) => String(index), pageNum),
+  [data?.education, educationPageMap, itemsForPage]);
+
+  const certsForPage = useCallback((pageNum) =>
+    itemsForPage(data?.certifications || [], certPageMap, (index) => String(index), pageNum),
+  [data?.certifications, certPageMap, itemsForPage]);
+
+  const customSectionItemsForPage = useCallback((section, pageNum) => {
+    if (!section || isStructuredProjectSection(section)) return section?.items || [];
+    return itemsForPage(section.items || [], customItemPageMap, (index) => `${section.id}:${index}`, pageNum);
+  }, [customItemPageMap, itemsForPage]);
 
   const page1Experience = useMemo(() => expForPage(1), [expForPage]);
+  const page1CustomSections = useMemo(() => (
+    (data?.customSections || [])
+      .map((section) => (
+        isStructuredProjectSection(section)
+          ? section
+          : { ...section, items: customSectionItemsForPage(section, 1) }
+      ))
+      .filter((section) => isStructuredProjectSection(section) || (section.items || []).length > 0)
+  ), [customSectionItemsForPage, data?.customSections]);
   const page1Data = useMemo(() => ({
     ...data,
     experience: page1Experience,
-  }), [data, page1Experience]);
+    skills: skillsForPage(1),
+    education: educationForPage(1),
+    certifications: certsForPage(1),
+    customSections: page1CustomSections,
+  }), [certsForPage, data, educationForPage, page1CustomSections, page1Experience, skillsForPage]);
+
+  useEffect(() => {
+    setExpGroupPageMap((prev) => Object.fromEntries(
+      Object.entries(prev).filter(([key]) => {
+        const [expId, type, index] = key.split(':');
+        if (type !== 'group') return false;
+        const exp = (data?.experience || []).find((entry) => entry._id === expId);
+        return exp && Number(index) < ((exp.sections || []).length);
+      })
+    ));
+    setExpBulletPageMap((prev) => Object.fromEntries(
+      Object.entries(prev).filter(([key]) => {
+        const [expId, type, index] = key.split(':');
+        if (type !== 'bullet') return false;
+        const exp = (data?.experience || []).find((entry) => entry._id === expId);
+        return exp && Number(index) < ((exp.bullets || []).length);
+      })
+    ));
+    setSkillsPageMap((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => Number(key) < (data?.skills?.length || 0))));
+    setEducationPageMap((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => Number(key) < (data?.education?.length || 0))));
+    setCertPageMap((prev) => Object.fromEntries(Object.entries(prev).filter(([key]) => Number(key) < (data?.certifications?.length || 0))));
+    setCustomItemPageMap((prev) => Object.fromEntries(
+      Object.entries(prev).filter(([key]) => {
+        const [sectionId, itemIndex] = key.split(':');
+        const section = (data?.customSections || []).find((entry) => entry.id === sectionId);
+        return section && !isStructuredProjectSection(section) && Number(itemIndex) < (section.items?.length || 0);
+      })
+    ));
+  }, [data?.certifications, data?.customSections, data?.education, data?.experience, data?.skills]);
+
 
   // Helper: ensure page N exists (usable from drag handlers and auto-pagination)
   const ensurePage = useCallback((n) => {
@@ -284,6 +408,9 @@ export default function EditorPage({
   useEffect(() => {
     // Never run auto-pagination while a drag is in progress — it fights with drag handlers
     if (activeDragRef.current) return;
+    // Freeze pagination while the user is actively editing text so sections don't jump mid-edit
+    const activeEditor = document.querySelector('#resume-content [data-editing="true"], #resume-content [contenteditable="true"]:focus');
+    if (activeEditor) return;
     // Cooldown: skip auto-pagination for 600ms after a drag ends so the user sees their drop result
     const cooldownRemaining = 600 - (Date.now() - dragEndTimeRef.current);
     if (cooldownRemaining > 0) {
@@ -304,7 +431,7 @@ export default function EditorPage({
         const isTwoCol = tplLayout?.columns === 2;
 
         // Signature to prevent infinite re-checks
-        const sig = `${sectionOrder.join(',')}|${sidebarOrder.join(',')}|${JSON.stringify(expPageMap)}|${data?.experience?.length}|${extraPages}|${JSON.stringify(sectionLayout)}`;
+        const sig = `${sectionOrder.join(',')}|${sidebarOrder.join(',')}|${JSON.stringify(expPageMap)}|${JSON.stringify(expGroupPageMap)}|${JSON.stringify(expBulletPageMap)}|${JSON.stringify(skillsPageMap)}|${JSON.stringify(educationPageMap)}|${JSON.stringify(certPageMap)}|${JSON.stringify(customItemPageMap)}|${data?.experience?.length}|${extraPages}|${JSON.stringify(sectionLayout)}`;
         if (sig === lastPagSigRef.current) return;
 
         // ensurePage is now defined outside this effect as a useCallback
@@ -330,6 +457,75 @@ export default function EditorPage({
             return { ...prev, [secId]: { ...prev[secId], page: nextPage, order: nextCount } };
           });
           ensurePage(nextPage);
+        };
+
+        const moveLastExperienceContentToPage = (fromPage, targetPage) => {
+          const pageExp = materializeExperienceForPage(fromPage);
+          if (!pageExp.length) return false;
+          const lastExp = pageExp[pageExp.length - 1];
+          const sourceExp = (data?.experience || []).find((entry) => entry._id === lastExp._id);
+          if (!sourceExp) return false;
+
+          const visibleGroups = (sourceExp.sections || [])
+            .map((_, sectionIndex) => sectionIndex)
+            .filter((sectionIndex) => ((expGroupPageMap[`${sourceExp._id}:group:${sectionIndex}`] || (expPageMap[sourceExp._id] || 1)) === fromPage));
+          const visibleBullets = (sourceExp.bullets || [])
+            .map((_, bulletIndex) => bulletIndex)
+            .filter((bulletIndex) => ((expBulletPageMap[`${sourceExp._id}:bullet:${bulletIndex}`] || (expPageMap[sourceExp._id] || 1)) === fromPage));
+
+          if (visibleBullets.length > 1) {
+            const bulletIndex = visibleBullets[visibleBullets.length - 1];
+            setExpBulletPageMap((prev) => ({ ...prev, [`${sourceExp._id}:bullet:${bulletIndex}`]: targetPage }));
+            ensurePage(targetPage);
+            return true;
+          }
+          if (visibleGroups.length > 1) {
+            const groupIndex = visibleGroups[visibleGroups.length - 1];
+            setExpGroupPageMap((prev) => ({ ...prev, [`${sourceExp._id}:group:${groupIndex}`]: targetPage }));
+            ensurePage(targetPage);
+            return true;
+          }
+          if (visibleGroups.length > 0 && visibleBullets.length > 0) {
+            const bulletIndex = visibleBullets[visibleBullets.length - 1];
+            setExpBulletPageMap((prev) => ({ ...prev, [`${sourceExp._id}:bullet:${bulletIndex}`]: targetPage }));
+            ensurePage(targetPage);
+            return true;
+          }
+          return false;
+        };
+
+        const moveSplitItemForSection = (secId, fromPage, targetPage) => {
+          if (secId === 'skills') {
+            const visible = (data?.skills || []).map((_, index) => index).filter((index) => ((skillsPageMap[String(index)] || 1) === fromPage));
+            if (visible.length <= 1) return false;
+            setSkillsPageMap((prev) => ({ ...prev, [String(visible[visible.length - 1])]: targetPage }));
+            ensurePage(targetPage);
+            return true;
+          }
+          if (secId === 'education') {
+            const visible = (data?.education || []).map((_, index) => index).filter((index) => ((educationPageMap[String(index)] || 1) === fromPage));
+            if (visible.length <= 1) return false;
+            setEducationPageMap((prev) => ({ ...prev, [String(visible[visible.length - 1])]: targetPage }));
+            ensurePage(targetPage);
+            return true;
+          }
+          if (secId === 'certifications') {
+            const visible = (data?.certifications || []).map((_, index) => index).filter((index) => ((certPageMap[String(index)] || 1) === fromPage));
+            if (visible.length <= 1) return false;
+            setCertPageMap((prev) => ({ ...prev, [String(visible[visible.length - 1])]: targetPage }));
+            ensurePage(targetPage);
+            return true;
+          }
+          if (typeof secId === 'string' && secId.startsWith('cs_')) {
+            const section = (data?.customSections || []).find((entry) => `cs_${entry.id}` === secId);
+            if (!section || isStructuredProjectSection(section)) return false;
+            const visible = (section.items || []).map((_, index) => index).filter((index) => ((customItemPageMap[`${section.id}:${index}`] || 1) === fromPage));
+            if (visible.length <= 1) return false;
+            setCustomItemPageMap((prev) => ({ ...prev, [`${section.id}:${visible[visible.length - 1]}`]: targetPage }));
+            ensurePage(targetPage);
+            return true;
+          }
+          return false;
         };
 
         // ── PAGE 1 overflow ──
@@ -372,6 +568,19 @@ export default function EditorPage({
         }
 
         if (mainOverflows) {
+          if (sectionOrder[0] === 'summary' && sectionOrder.includes('experience') && moveLastExperienceContentToPage(1, 2)) {
+            lastDroppedSectionRef.current = null;
+            lastDropMetaRef.current = null;
+            return;
+          }
+          const splitMainCandidates = [...sectionOrder].reverse().filter((secId) => secId !== 'experience');
+          for (const secId of splitMainCandidates) {
+            if (moveSplitItemForSection(secId, 1, 2)) {
+              lastDroppedSectionRef.current = null;
+              lastDropMetaRef.current = null;
+              return;
+            }
+          }
           const droppedMainSection = lastDroppedSectionRef.current;
           const protectedPage1MainSection =
             lastDropMetaRef.current?.toPage === 1 &&
@@ -422,6 +631,14 @@ export default function EditorPage({
         }
 
         if (sideOverflows && isTwoCol) {
+          const splitSideCandidates = [...sidebarOrder].reverse();
+          for (const secId of splitSideCandidates) {
+            if (moveSplitItemForSection(secId, 1, 2)) {
+              lastDroppedSectionRef.current = null;
+              lastDropMetaRef.current = null;
+              return;
+            }
+          }
           const droppedSideSection = lastDroppedSectionRef.current;
           const protectedPage1SideSection =
             lastDropMetaRef.current?.toPage === 1 &&
@@ -498,13 +715,34 @@ export default function EditorPage({
             if (!mainOverflow && !sideOverflow) continue;
 
             if (mainOverflow) {
+              if (moveLastExperienceContentToPage(pageNum, nextPage)) {
+                lastDroppedSectionRef.current = null;
+                lastDropMetaRef.current = null;
+                return;
+              }
+              const splitMainCandidates = Object.entries(sectionLayout)
+                .filter(([id, v]) => v.page <= pageNum && (v.column || 'main') === 'main')
+                .sort((a, b) => a[1].order - b[1].order)
+                .map(([id]) => id)
+                .reverse();
+              for (const secId of splitMainCandidates) {
+                if (moveSplitItemForSection(secId, pageNum, nextPage)) {
+                  lastDroppedSectionRef.current = null;
+                  lastDropMetaRef.current = null;
+                  return;
+                }
+              }
+              const pageMainSecs = Object.entries(sectionLayout)
+                .filter(([_, v]) => v.page === pageNum && (v.column || 'main') === 'main')
+                .sort((a, b) => a[1].order - b[1].order);
               const droppedSectionId = lastDroppedSectionRef.current;
               if (
                 droppedSectionId &&
                 typeof droppedSectionId === 'string' &&
                 sectionLayout[droppedSectionId]?.page === pageNum &&
                 (sectionLayout[droppedSectionId]?.column || 'main') === 'main' &&
-                droppedSectionId !== 'experience'
+                droppedSectionId !== 'experience' &&
+                pageMainSecs.length > 1
               ) {
                 moveSectionToNextPage(droppedSectionId, pageNum);
                 lastDroppedSectionRef.current = null;
@@ -521,10 +759,7 @@ export default function EditorPage({
                 return;
               }
 
-              const pageMainSecs = Object.entries(sectionLayout)
-                .filter(([_, v]) => v.page === pageNum && (v.column || 'main') === 'main')
-                .sort((a, b) => a[1].order - b[1].order);
-              if (pageMainSecs.length > 0) {
+              if (pageMainSecs.length > 1) {
                 moveSectionToNextPage(pageMainSecs[pageMainSecs.length - 1][0], pageNum);
                 lastDroppedSectionRef.current = null;
                 lastDropMetaRef.current = null;
@@ -533,12 +768,29 @@ export default function EditorPage({
             }
 
             if (sideOverflow) {
+              const splitSideCandidates = Object.entries(sectionLayout)
+                .filter(([id, v]) => v.page <= pageNum && v.column === 'side')
+                .sort((a, b) => a[1].order - b[1].order)
+                .map(([id]) => id)
+                .reverse();
+              for (const secId of splitSideCandidates) {
+                if (moveSplitItemForSection(secId, pageNum, nextPage)) {
+                  lastDroppedSectionRef.current = null;
+                  lastDropMetaRef.current = null;
+                  return;
+                }
+              }
+              const pageSideSecs = Object.entries(sectionLayout)
+                .filter(([_, v]) => v.page === pageNum && v.column === 'side')
+                .sort((a, b) => a[1].order - b[1].order)
+                .map(([id]) => id);
               const droppedSectionId = lastDroppedSectionRef.current;
               if (
                 droppedSectionId &&
                 typeof droppedSectionId === 'string' &&
                 sectionLayout[droppedSectionId]?.page === pageNum &&
-                sectionLayout[droppedSectionId]?.column === 'side'
+                sectionLayout[droppedSectionId]?.column === 'side' &&
+                pageSideSecs.length > 1
               ) {
                 moveSectionToNextPage(droppedSectionId, pageNum);
                 lastDroppedSectionRef.current = null;
@@ -549,12 +801,8 @@ export default function EditorPage({
               const isPinnedSidebarCustom = (id) =>
                 typeof id === 'string' &&
                 (id.startsWith('cs_contact_details_') || id.startsWith('cs_personal_details_') || id.startsWith('cs_references_'));
-              const pageSideSecs = Object.entries(sectionLayout)
-                .filter(([_, v]) => v.page === pageNum && v.column === 'side')
-                .sort((a, b) => a[1].order - b[1].order)
-                .map(([id]) => id);
               const movableCustom = pageSideSecs.filter(id => typeof id === 'string' && id.startsWith('cs_') && !isPinnedSidebarCustom(id));
-              if (movableCustom.length > 0) {
+              if (pageSideSecs.length > 1 && movableCustom.length > 0) {
                 moveSectionToNextPage(movableCustom[movableCustom.length - 1], pageNum);
                 lastDroppedSectionRef.current = null;
                 lastDropMetaRef.current = null;
@@ -562,7 +810,7 @@ export default function EditorPage({
               }
               const preferredOrder = ['certifications', 'education', 'skills'];
               for (const secId of preferredOrder) {
-                if (pageSideSecs.includes(secId)) {
+                if (pageSideSecs.length > 1 && pageSideSecs.includes(secId)) {
                   moveSectionToNextPage(secId, pageNum);
                   lastDroppedSectionRef.current = null;
                   lastDropMetaRef.current = null;
@@ -570,7 +818,7 @@ export default function EditorPage({
                 }
               }
               const pinnedCustom = pageSideSecs.filter(id => isPinnedSidebarCustom(id));
-              if (pinnedCustom.length > 0) {
+              if (pageSideSecs.length > 1 && pinnedCustom.length > 0) {
                 moveSectionToNextPage(pinnedCustom[pinnedCustom.length - 1], pageNum);
                 lastDroppedSectionRef.current = null;
                 lastDropMetaRef.current = null;
@@ -587,6 +835,24 @@ export default function EditorPage({
           if (contentH <= A4H + 5) continue;
 
           // This page overflows — move last item to next page
+          const droppedSectionId = lastDroppedSectionRef.current;
+          if (moveLastExperienceContentToPage(pageNum, nextPage)) {
+            lastDroppedSectionRef.current = null;
+            lastDropMetaRef.current = null;
+            return;
+          }
+          const splitCandidates = Object.entries(sectionLayout)
+            .filter(([id, v]) => v.page <= pageNum && (v.column || 'main') === 'main')
+            .sort((a, b) => a[1].order - b[1].order)
+            .map(([id]) => id)
+            .reverse();
+          for (const secId of splitCandidates) {
+            if (moveSplitItemForSection(secId, pageNum, nextPage)) {
+              lastDroppedSectionRef.current = null;
+              lastDropMetaRef.current = null;
+              return;
+            }
+          }
 
           // Move experience items from this page bottom-up
           const pageExp = (data?.experience || []).filter(e => (expPageMap[e._id] || 1) === pageNum);
@@ -602,7 +868,18 @@ export default function EditorPage({
           const pageSecs = Object.entries(sectionLayout)
             .filter(([_, v]) => v.page === pageNum)
             .sort((a, b) => a[1].order - b[1].order);
-          if (pageSecs.length > 0) {
+          if (
+            droppedSectionId &&
+            typeof droppedSectionId === 'string' &&
+            sectionLayout[droppedSectionId]?.page === pageNum &&
+            pageSecs.length > 1
+          ) {
+            moveSectionToNextPage(droppedSectionId, pageNum);
+            lastDroppedSectionRef.current = null;
+            lastDropMetaRef.current = null;
+            return;
+          }
+          if (pageSecs.length > 1) {
             moveSectionToNextPage(pageSecs[pageSecs.length - 1][0], pageNum);
             lastDroppedSectionRef.current = null;
             return;
@@ -620,7 +897,7 @@ export default function EditorPage({
       cancelAnimationFrame(raf2);
       clearTimeout(paginationRetryTimerRef.current);
     };
-  }, [data, expPageMap, extraPages, sectionOrder, sidebarOrder, sectionLayout, template, ensurePage, paginationTick]);
+  }, [data, expPageMap, expGroupPageMap, expBulletPageMap, skillsPageMap, educationPageMap, certPageMap, customItemPageMap, extraPages, sectionOrder, sidebarOrder, sectionLayout, template, ensurePage, paginationTick, materializeExperienceForPage]);
 
   // ── Sync custom section IDs into sectionOrder / sidebarOrder ──
   // Custom sections use `cs_{id}` as drag IDs so they participate in SortableContext
@@ -1206,6 +1483,26 @@ export default function EditorPage({
     setDownloading(false);
   };
 
+  const handleImportClick = () => {
+    importInputRef.current?.click();
+  };
+
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      await onImportProject?.(file);
+    } finally {
+      event.target.value = '';
+    }
+  };
+
+  const applyProjectName = () => {
+    const trimmed = String(projectNameDraft || '').trim();
+    if (!trimmed || trimmed === currentProjectName) return;
+    onRenameProject?.(trimmed);
+  };
+
   const handleMoveSection = (from, to) => {
     setSectionOrder(prev => {
       const arr = [...prev];
@@ -1235,6 +1532,8 @@ export default function EditorPage({
   const fontFamily = globalFont?.family || tplLayout.defaultFont || "'Outfit',sans-serif";
   const baseFontSize = globalFont?.size || 10;
   const pageBgColor = colors.background || defaults?.background || '#ffffff';
+  const keywordPreview = atsReport?.matchedKeywords?.slice(0, 6) || [];
+  const missingKeywordPreview = atsReport?.missingKeywords?.slice(0, 6) || [];
 
   // Shared heading style for page-2 sections (template-aware)
   const isCommentHeading = tplLayout.headingStyle === 'comment';
@@ -1425,18 +1724,113 @@ export default function EditorPage({
   }
 
   // ── Generalized page content renderer for pages 2+ ──
+  const continuationSectionsForPage = useCallback((pageNum, column) => {
+    const matchesColumn = (sectionId) => (sectionLayout[sectionId]?.column || 'main') === column;
+    const isEarlierPage = (sectionId) => (sectionLayout[sectionId]?.page || 1) < pageNum;
+    const items = [];
+
+    if (skillsForPage(pageNum).length > 0 && isEarlierPage('skills') && matchesColumn('skills')) items.push('skills');
+    if (educationForPage(pageNum).length > 0 && isEarlierPage('education') && matchesColumn('education')) items.push('education');
+    if (certsForPage(pageNum).length > 0 && isEarlierPage('certifications') && matchesColumn('certifications')) items.push('certifications');
+
+    (customSections || []).forEach((section) => {
+      const dragId = `cs_${section.id}`;
+      if (!isEarlierPage(dragId) || !matchesColumn(dragId) || isStructuredProjectSection(section)) return;
+      if (customSectionItemsForPage(section, pageNum).length > 0) items.push(dragId);
+    });
+
+    return items;
+  }, [certsForPage, customSectionItemsForPage, customSections, educationForPage, sectionLayout, skillsForPage]);
+
+  function renderContinuationSection(sectionId, pageNum, sidebar = false) {
+    if (sectionId === 'skills') {
+      const items = skillsForPage(pageNum);
+      if (!items.length) return null;
+      return (
+        <section key={`${sectionId}-continuation-${pageNum}`} style={{ marginBottom: sidebar ? p2SidebarSectionGap : p2SectionGap }}>
+          <EditableText value={label('skills')} onChange={v => onEdit('section_rename', { sectionId: 'skills', v })} tag={sidebar ? 'h3' : 'h2'} style={sidebar ? p2SidebarHeading : p2Heading} />
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: sidebar ? 6 : 8 }}>
+            {items.map((item, index) => (
+              <span key={`${sectionId}-${pageNum}-${index}`} style={{ fontSize: baseFontSize, lineHeight: 1.6, color: sidebar ? p2SidebarText : bodyColor }}>
+                {item}
+              </span>
+            ))}
+          </div>
+        </section>
+      );
+    }
+    if (sectionId === 'education') {
+      const items = educationForPage(pageNum);
+      if (!items.length) return null;
+      return (
+        <section key={`${sectionId}-continuation-${pageNum}`} style={{ marginBottom: sidebar ? p2SidebarSectionGap : p2SectionGap }}>
+          <EditableText value={label('education')} onChange={v => onEdit('section_rename', { sectionId: 'education', v })} tag={sidebar ? 'h3' : 'h2'} style={sidebar ? p2SidebarHeading : p2Heading} />
+          <div style={{ display: 'grid', gap: 8 }}>
+            {items.map((item, index) => (
+              <div key={`${sectionId}-${pageNum}-${index}`}>
+                <div style={{ fontSize: baseFontSize + 1, fontWeight: 600, color: sidebar ? p2SidebarText : headColor }}>{item.degree}</div>
+                <div style={{ fontSize: baseFontSize, color: sidebar ? p2SidebarText : bodyColor }}>{item.school}</div>
+                <div style={{ fontSize: baseFontSize - 1, color: sidebar ? p2SidebarText : 'var(--c-text-muted)' }}>{item.year}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+    }
+    if (sectionId === 'certifications') {
+      const items = certsForPage(pageNum);
+      if (!items.length) return null;
+      return (
+        <section key={`${sectionId}-continuation-${pageNum}`} style={{ marginBottom: sidebar ? p2SidebarSectionGap : p2SectionGap }}>
+          <EditableText value={label('certifications')} onChange={v => onEdit('section_rename', { sectionId: 'certifications', v })} tag={sidebar ? 'h3' : 'h2'} style={sidebar ? p2SidebarHeading : p2Heading} />
+          <div style={{ display: 'grid', gap: 4 }}>
+            {items.map((item, index) => (
+              <div key={`${sectionId}-${pageNum}-${index}`} style={{ fontSize: baseFontSize, lineHeight: 1.6, color: sidebar ? p2SidebarText : bodyColor }}>
+                {item}
+              </div>
+            ))}
+          </div>
+        </section>
+      );
+    }
+
+    const section = findCustomSection(sectionId);
+    const items = customSectionItemsForPage(section, pageNum);
+    if (!section || !items.length) return null;
+
+    return (
+      <section key={`${sectionId}-continuation-${pageNum}`} style={{ marginBottom: sidebar ? p2SidebarSectionGap : p2SectionGap }}>
+        <EditableText
+          value={section.title}
+          onChange={v => onEdit('custom_section_rename', { id: section.id, v })}
+          tag={sidebar ? 'h3' : 'h2'}
+          style={sidebar ? p2SidebarHeading : p2Heading}
+        />
+        <div style={{ display: 'grid', gap: 6 }}>
+          {items.map((item, index) => (
+            <div key={`${section.id}-${pageNum}-${index}`} style={{ fontSize: baseFontSize, lineHeight: 1.6, color: sidebar ? p2SidebarText : bodyColor }}>
+              {item}
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
   function renderPageContent(pageNum) {
     const pageSections = sectionsForPage(pageNum);
     const pageMainSections = pageSectionsByColumn(pageNum, 'main');
     const pageSidebarSections = pageSectionsByColumn(pageNum, 'side');
+    const pageMainContinuations = continuationSectionsForPage(pageNum, 'main');
+    const pageSidebarContinuations = continuationSectionsForPage(pageNum, 'side');
     const pageExperience = expForPage(pageNum);
     const pageExpItemIds = pageExperience.map(e => `exp-${e._id}`);
 
     // Show individual exp items when experience section itself is NOT on this page
     const showIndividualExp = pageExperience.length > 0 && sectionLayout.experience?.page !== pageNum;
 
-    const hasContent = pageSections.length > 0 || showIndividualExp;
-    const hasMainContent = pageMainSections.length > 0 || showIndividualExp;
+    const hasContent = pageSections.length > 0 || showIndividualExp || pageMainContinuations.length > 0 || pageSidebarContinuations.length > 0;
+    const hasMainContent = pageMainSections.length > 0 || showIndividualExp || pageMainContinuations.length > 0;
     const layoutMode = getPageLayoutMode(pageNum);
     const sidebarOn = isSidebarVisible(pageNum);
     const isDropTarget = dragOverPage === pageNum;
@@ -1490,6 +1884,7 @@ export default function EditorPage({
         )}
 
         {/* Custom/built-in sections assigned to this page's main column */}
+        {pageMainContinuations.map((sectionId) => renderContinuationSection(sectionId, pageNum, false))}
         <SortableContext items={pageMainSections} strategy={verticalListSortingStrategy}>
           {pageMainSections.map(renderPage2Section)}
         </SortableContext>
@@ -1497,9 +1892,12 @@ export default function EditorPage({
     );
 
     const pageSidebarInner = (
-      <SortableContext items={pageSidebarSections} strategy={verticalListSortingStrategy}>
-        {pageSidebarSections.map(renderPage2SidebarSection)}
-      </SortableContext>
+      <>
+        {pageSidebarContinuations.map((sectionId) => renderContinuationSection(sectionId, pageNum, true))}
+        <SortableContext items={pageSidebarSections} strategy={verticalListSortingStrategy}>
+          {pageSidebarSections.map(renderPage2SidebarSection)}
+        </SortableContext>
+      </>
     );
 
     return (
@@ -1650,10 +2048,76 @@ export default function EditorPage({
   }
 
   return (
-    <div className="min-h-screen flex pt-[56px]" style={{ background: 'var(--c-bg)' }}>
+    <div className="editor-shell">
       {/* ===== LEFT PANEL (redesigned) ===== */}
       <aside className="editor-sidebar">
         <div className="sidebar-inner">
+          <div className="editor-ai-card" style={{ gap: 12 }}>
+            <div className="editor-ai-card-head">
+              <div>
+                <span className="editor-score-eyebrow">Workspace</span>
+                <h3>Local project studio</h3>
+              </div>
+              <span className="editor-ai-badge">Local</span>
+            </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ fontSize: 11, color: 'var(--c-text-muted)' }}>Project name</label>
+              <input
+                value={projectNameDraft}
+                onChange={(event) => setProjectNameDraft(event.target.value)}
+                onBlur={applyProjectName}
+                placeholder="Resume name"
+                style={{
+                  width: '100%',
+                  borderRadius: 12,
+                  border: '1px solid var(--c-border)',
+                  background: 'var(--c-surface-alt)',
+                  color: 'var(--c-text)',
+                  padding: '10px 12px',
+                  fontSize: 12,
+                }}
+              />
+            </div>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <label style={{ fontSize: 11, color: 'var(--c-text-muted)' }}>Saved resumes</label>
+              <select
+                value={activeProjectId || ''}
+                onChange={(event) => onSelectProject?.(event.target.value)}
+                style={{
+                  width: '100%',
+                  borderRadius: 12,
+                  border: '1px solid var(--c-border)',
+                  background: 'var(--c-surface-alt)',
+                  color: 'var(--c-text)',
+                  padding: '10px 12px',
+                  fontSize: 12,
+                }}
+              >
+                {workspaceProjects?.map((project) => (
+                  <option key={project.id} value={project.id}>{project.name}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              <button type="button" className="editor-ai-btn" onClick={onCreateProject}>New</button>
+              <button type="button" className="editor-ai-btn" onClick={onDuplicateProject}>Duplicate</button>
+              <button type="button" className="editor-ai-btn" onClick={onExportProject}>Export</button>
+              <button type="button" className="editor-ai-btn" onClick={handleImportClick}>Import</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+              <button type="button" className="editor-ai-btn" onClick={onUndo} disabled={!canUndo}>Undo</button>
+              <button type="button" className="editor-ai-btn" onClick={onRedo} disabled={!canRedo}>Redo</button>
+              <button type="button" className="editor-ai-btn" onClick={onDeleteProject}>Delete</button>
+            </div>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".json,.cvcraft.json"
+              onChange={handleImportFile}
+              style={{ display: 'none' }}
+            />
+          </div>
+
           <div className="editor-score-card">
             <div className="editor-score-head">
               <div>
@@ -1700,6 +2164,114 @@ export default function EditorPage({
             </div>
           </div>
 
+          <div className="editor-ai-card">
+            <div className="editor-ai-card-head">
+              <div>
+                <span className="editor-score-eyebrow">ATS Studio</span>
+                <h3>Target a real job</h3>
+              </div>
+              <span className="editor-ai-badge">{jobDescription?.trim() ? `${atsReport?.score || 0}%` : 'Ready'}</span>
+            </div>
+            <textarea
+              value={jobDescription}
+              onChange={(event) => onJobDescriptionChange?.(event.target.value)}
+              placeholder="Paste a job description here to get keyword coverage, gap analysis, and companion copy."
+              rows={7}
+              style={{
+                width: '100%',
+                borderRadius: 14,
+                border: '1px solid var(--c-border)',
+                background: 'var(--c-surface-alt)',
+                color: 'var(--c-text)',
+                padding: '12px 14px',
+                fontSize: 12,
+                lineHeight: 1.55,
+                resize: 'vertical',
+              }}
+            />
+            {jobDescription?.trim() ? (
+              <div style={{ display: 'grid', gap: 10 }}>
+                <div style={{ fontSize: 12, color: 'var(--c-text)' }}>
+                  Keyword match score: <strong>{atsReport?.score || 0}</strong>
+                </div>
+                {keywordPreview.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {keywordPreview.map((keyword) => (
+                      <span key={keyword} style={{ fontSize: 11, padding: '5px 8px', borderRadius: 999, background: 'rgba(16,185,129,.12)', color: '#10b981' }}>{keyword}</span>
+                    ))}
+                  </div>
+                )}
+                {missingKeywordPreview.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {missingKeywordPreview.map((keyword) => (
+                      <span key={keyword} style={{ fontSize: 11, padding: '5px 8px', borderRadius: 999, background: 'rgba(251,146,60,.12)', color: '#fb923c' }}>{keyword}</span>
+                    ))}
+                  </div>
+                )}
+                {(atsReport?.suggestions || []).length > 0 && (
+                  <div style={{ display: 'grid', gap: 6 }}>
+                    {atsReport.suggestions.slice(0, 3).map((item) => (
+                      <div key={item} className="editor-score-item">{item}</div>
+                    ))}
+                  </div>
+                )}
+                <button type="button" className="editor-ai-btn editor-ai-btn--primary" onClick={onGenerateCompanionDocs} disabled={companionLoading}>
+                  {companionLoading ? 'Generating companion copy...' : 'Generate cover letter + LinkedIn'}
+                </button>
+              </div>
+            ) : (
+              <p className="editor-ai-copy">Paste a job description to unlock ATS scoring, missing keyword detection, and companion application copy.</p>
+            )}
+          </div>
+
+          {(coverLetter || linkedInSummary) && (
+            <div className="editor-ai-card">
+              <div className="editor-ai-card-head">
+                <div>
+                  <span className="editor-score-eyebrow">Companion Docs</span>
+                  <h3>Application assets</h3>
+                </div>
+                <span className="editor-ai-badge">Generated</span>
+              </div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <label style={{ fontSize: 11, color: 'var(--c-text-muted)' }}>Cover letter</label>
+                <textarea
+                  value={coverLetter}
+                  onChange={(event) => onCoverLetterChange?.(event.target.value)}
+                  rows={8}
+                  style={{
+                    width: '100%',
+                    borderRadius: 14,
+                    border: '1px solid var(--c-border)',
+                    background: 'var(--c-surface-alt)',
+                    color: 'var(--c-text)',
+                    padding: '12px 14px',
+                    fontSize: 12,
+                    lineHeight: 1.55,
+                    resize: 'vertical',
+                  }}
+                />
+                <label style={{ fontSize: 11, color: 'var(--c-text-muted)' }}>LinkedIn About</label>
+                <textarea
+                  value={linkedInSummary}
+                  onChange={(event) => onLinkedInSummaryChange?.(event.target.value)}
+                  rows={5}
+                  style={{
+                    width: '100%',
+                    borderRadius: 14,
+                    border: '1px solid var(--c-border)',
+                    background: 'var(--c-surface-alt)',
+                    color: 'var(--c-text)',
+                    padding: '12px 14px',
+                    fontSize: 12,
+                    lineHeight: 1.55,
+                    resize: 'vertical',
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           {showPhoto && (
             <PanelGroup title="Photo" icon={<PhotoIcon />}>
               <PhotoPanel
@@ -1716,59 +2288,18 @@ export default function EditorPage({
           {/* ── Expandable buttons ── */}
           <div className="panel-divider" />
 
-          <ExpandButton
-            label="Fonts"
-            icon={<FontIcon />}
-            isOpen={openPanel === 'fonts'}
-            onClick={() => toggle('fonts')}
+          <button
+            type="button"
+            className="global-settings-launch"
+            onClick={() => setGlobalSettingsOpen(true)}
           >
-            <FontPanel globalFont={globalFont} setGlobalFont={setGlobalFont} />
-          </ExpandButton>
-
-          <ExpandButton
-            label="Colors"
-            icon={<ColorIcon />}
-            isOpen={openPanel === 'colors'}
-            onClick={() => toggle('colors')}
-          >
-            <ColorPanel colors={colors} setColors={setColors} defaults={defaults} />
-          </ExpandButton>
-
-          <ExpandButton
-            label="Skill Style"
-            icon={<SkillIcon />}
-            isOpen={openPanel === 'skillstyle'}
-            onClick={() => toggle('skillstyle')}
-          >
-            <SkillStylePanel selected={skillStyle} onSelect={setSkillStyle} />
-          </ExpandButton>
-
-          <ExpandButton
-            label="Contact Style"
-            icon={<ContactIcon />}
-            isOpen={openPanel === 'contactstyle'}
-            onClick={() => toggle('contactstyle')}
-          >
-            <ContactStylePanel selected={contactStyle} onSelect={setContactStyle} />
-          </ExpandButton>
-
-          <ExpandButton
-            label="Education Style"
-            icon={<EduIcon />}
-            isOpen={openPanel === 'edustyle'}
-            onClick={() => toggle('edustyle')}
-          >
-            <EducationStylePanel selected={educationStyle} onSelect={setEducationStyle} />
-          </ExpandButton>
-
-          <ExpandButton
-            label="Cert Style"
-            icon={<CertIcon />}
-            isOpen={openPanel === 'certstyle'}
-            onClick={() => toggle('certstyle')}
-          >
-            <CertStylePanel selected={certificationStyle} onSelect={setCertificationStyle} />
-          </ExpandButton>
+            <span className="global-settings-launch__icon"><GlobalSettingsIcon /></span>
+            <span className="global-settings-launch__copy">
+              <strong>Global Settings</strong>
+              <small>Fonts, colors, and the full Styles list in one right-side popup.</small>
+            </span>
+            <span className="global-settings-launch__cta">Open</span>
+          </button>
 
           <ExpandButton
             label="Section Studio"
@@ -1782,6 +2313,7 @@ export default function EditorPage({
               onEdit={onEdit}
               template={template}
               sectionLabels={sectionLabels}
+              hiddenSections={hiddenSections}
               onAIRewrite={onAIRewrite}
             />
           </ExpandButton>
@@ -1828,6 +2360,7 @@ export default function EditorPage({
       </aside>
 
       {/* ===== RESUME PREVIEW ===== */}
+      <SectionActionsContext.Provider value={{ removeSection: handleRemoveSection }}>
       <DndContext
         sensors={sensors}
         collisionDetection={scopedCollision}
@@ -1836,7 +2369,7 @@ export default function EditorPage({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-          <div className="flex-1 overflow-y-auto" style={{ height: 'calc(100vh - 56px)', background: 'var(--c-preview-bg)' }}>
+          <div className="editor-canvas-pane">
             <A4Wrapper
               extraPages={extraPages}
               onAddPage={handleAddPage}
@@ -1889,6 +2422,7 @@ export default function EditorPage({
           ) : null}
         </DragOverlay>
       </DndContext>
+      </SectionActionsContext.Provider>
 
       {/* ===== RIGHT PANEL (Templates) ===== */}
       <aside className={`editor-sidebar-right${templatesOpen ? '' : ' editor-sidebar-right--collapsed'}`}>
@@ -1929,6 +2463,24 @@ export default function EditorPage({
           )}
         </div>
       </aside>
+
+      <GlobalSettingsDrawer
+        open={globalSettingsOpen}
+        onClose={() => setGlobalSettingsOpen(false)}
+        globalFont={globalFont}
+        setGlobalFont={setGlobalFont}
+        colors={colors}
+        setColors={setColors}
+        defaults={defaults}
+        skillStyle={skillStyle}
+        setSkillStyle={setSkillStyle}
+        contactStyle={contactStyle}
+        setContactStyle={setContactStyle}
+        educationStyle={educationStyle}
+        setEducationStyle={setEducationStyle}
+        certificationStyle={certificationStyle}
+        setCertificationStyle={setCertificationStyle}
+      />
     </div>
   );
 }
@@ -2063,6 +2615,15 @@ function SectionIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
       <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function GlobalSettingsIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 .99-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51.99H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   );
 }

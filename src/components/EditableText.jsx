@@ -1,17 +1,32 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRichTextToolbar } from './RichTextToolbarContext';
+import { sanitizeRichText, serializeRichText } from '../utils/richText';
 
-export default function EditableText({ value, onChange, tag = 'span', style, className = '', multiline, placeholder }) {
+export default function EditableText({ value, onChange, tag = 'span', style, className = '', multiline, placeholder, bulletBlock = false }) {
   const ref = useRef(null);
   const [editing, setEditing] = useState(false);
   const Tag = tag;
+  const toolbar = useRichTextToolbar();
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const nextHtml = sanitizeRichText(value, { multiline });
+    if (ref.current.innerHTML !== nextHtml) {
+      ref.current.innerHTML = nextHtml;
+    }
+  }, [value, multiline]);
 
   const handleBlur = useCallback(() => {
+    if (toolbar?.isToolbarInteracting?.()) {
+      return;
+    }
     if (ref.current) {
-      const text = ref.current[multiline ? 'innerText' : 'textContent'];
+      const text = serializeRichText(ref.current, { multiline });
       if (text !== value) onChange(text);
     }
     setEditing(false);
-  }, [value, onChange, multiline]);
+    toolbar?.deactivateEditable?.(ref.current);
+  }, [value, onChange, multiline, toolbar]);
 
   const handleDoubleClick = useCallback((e) => {
     e.stopPropagation();
@@ -20,6 +35,7 @@ export default function EditableText({ value, onChange, tag = 'span', style, cla
     requestAnimationFrame(() => {
       if (ref.current) {
         ref.current.focus();
+        toolbar?.activateEditable?.(ref.current);
         // Place cursor at click position via selection
         const sel = window.getSelection();
         if (sel && ref.current.childNodes.length > 0) {
@@ -37,7 +53,7 @@ export default function EditableText({ value, onChange, tag = 'span', style, cla
         }
       }
     });
-  }, []);
+  }, [toolbar]);
 
   // When editing, stop propagation so dnd-kit doesn't start a drag
   // When not editing, let the event bubble up to the drag listener
@@ -47,6 +63,23 @@ export default function EditableText({ value, onChange, tag = 'span', style, cla
     }
   }, [editing]);
 
+  const handleFocus = useCallback(() => {
+    if (editing && ref.current) {
+      toolbar?.activateEditable?.(ref.current);
+    }
+  }, [editing, toolbar]);
+
+  const handleInput = useCallback(() => {
+    toolbar?.refreshState?.();
+  }, [toolbar]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (!multiline && e.key === 'Enter') {
+      e.preventDefault();
+      ref.current?.blur();
+    }
+  }, [multiline]);
+
   return (
     <Tag
       ref={ref}
@@ -55,6 +88,10 @@ export default function EditableText({ value, onChange, tag = 'span', style, cla
       onBlur={handleBlur}
       onDoubleClick={handleDoubleClick}
       onMouseDown={handleMouseDown}
+      onFocus={handleFocus}
+      onInput={handleInput}
+      onKeyUp={handleInput}
+      onKeyDown={handleKeyDown}
       className={className}
       style={{
         ...style,
@@ -62,10 +99,11 @@ export default function EditableText({ value, onChange, tag = 'span', style, cla
         userSelect: editing ? 'text' : 'none',
         WebkitUserSelect: editing ? 'text' : 'none',
       }}
+      data-rich-text-root="true"
+      data-bullet-block={bulletBlock ? 'true' : undefined}
+      data-multiline={multiline ? 'true' : undefined}
       data-placeholder={placeholder}
       data-editing={editing ? 'true' : undefined}
-    >
-      {value}
-    </Tag>
+    />
   );
 }

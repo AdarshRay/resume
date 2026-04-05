@@ -114,7 +114,7 @@ export default function ExecutiveNavy({ data, photo, photoSettings, onPhotoSetti
   function renderMainSection(sectionId) {
     if (sectionId === 'summary') return (
       <DraggableSection key={sectionId} id={sectionId}>
-        <div style={{ marginBottom: -20 }}>
+        <div style={{ marginBottom: sectionGap }}>
           <EditableText value={L.summary} onChange={v => onEdit('section_rename', { sectionId: 'summary', v })} tag="h2" className="text-[11px] font-bold uppercase tracking-wider" style={{ color: c.heading, margin: '0 0 2px 0' }} />
           <EditableText value={d.summary} onChange={v => onEdit('summary', { v })} tag="p" multiline className="text-[10px]" style={{ color: c.text, lineHeight: summaryLineHeight, margin: 0 }} />
         </div>
@@ -122,18 +122,18 @@ export default function ExecutiveNavy({ data, photo, photoSettings, onPhotoSetti
     );
     if (sectionId === 'experience') return (
       <DraggableSection key={sectionId} id={sectionId}>
-        <div style={{ marginTop: mainSectionLift, marginBottom: sectionGap }}>
+        <div style={{ marginTop: 0, marginBottom: sectionGap }}>
           <EditableText value={L.experience} onChange={v => onEdit('section_rename', { sectionId: 'experience', v })} tag="h2" className="text-[11px] font-bold uppercase tracking-wider" style={{ color: c.heading, margin: '0 0 1px 0' }} />
           <SortableContext items={d.experience?.map(e => `exp-${e._id}`) || []} strategy={verticalListSortingStrategy}>
             {d.experience?.map((exp, i) => (
               <DraggableSection key={exp._id} id={`exp-${exp._id}`}>
-                <div style={{ borderLeft: `2px solid ${accent}`, paddingLeft: 6, marginTop: i === 0 ? -36 : -18 }}>
+                <div style={{ borderLeft: `2px solid ${accent}`, paddingLeft: 6, marginTop: i === 0 ? 4 : 8 }}>
                   <ExpBlock exp={exp} idx={i} onEdit={onEdit} headingColor={c.heading} bodyColor={c.text} accentColor={accent} />
                 </div>
               </DraggableSection>
             ))}
           </SortableContext>
-          <div style={{ marginTop: -10 }}>
+          <div style={{ marginTop: 8 }}>
             <AddButton onClick={() => onEdit('exp_add', {})} label="experience" />
           </div>
         </div>

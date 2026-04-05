@@ -63,12 +63,12 @@ export default function BoldCoral({ data, photo, photoSettings = {}, onPhotoSett
     );
     if (sectionId === 'experience') return (
       <DraggableSection key={sectionId} id={sectionId}>
-        <section style={{ marginTop: mainSectionLift, marginBottom: sectionGap }}>
+        <section style={{ marginTop: 0, marginBottom: sectionGap }}>
           <EditableText value={L.experience} onChange={v => onEdit('section_rename', { sectionId: 'experience', v })} tag="h2" style={{ fontSize: 13, fontWeight: 700, color: headingColor, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: headingGap, paddingBottom: 3, borderBottom: `2px solid ${accent}` }} />
           <SortableContext items={d.experience?.map(e => `exp-${e._id}`) || []} strategy={verticalListSortingStrategy}>
             {d.experience?.map((exp, i) => (
               <DraggableSection key={exp._id} id={`exp-${exp._id}`}>
-                <div style={{ marginTop: i === 0 ? -8 : -4 }}>
+                <div style={{ marginTop: i === 0 ? 4 : 8 }}>
                   <ExpBlock
                     exp={exp}
                     idx={i}
@@ -81,7 +81,7 @@ export default function BoldCoral({ data, photo, photoSettings = {}, onPhotoSett
               </DraggableSection>
             ))}
           </SortableContext>
-          <div style={{ marginTop: -3 }}>
+          <div style={{ marginTop: 8 }}>
             <AddButton onClick={() => onEdit('exp_add', {})} label="experience" />
           </div>
         </section>

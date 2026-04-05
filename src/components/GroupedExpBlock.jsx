@@ -1,6 +1,6 @@
 import EditableText from './EditableText';
 import AddButton from './AddButton';
-import DeleteButton from './DeleteButton';
+import { bulletBlockValue, parseBulletBlock } from '../utils/bulletBlocks';
 
 export default function GroupedExpBlock({
   exp,
@@ -17,34 +17,42 @@ export default function GroupedExpBlock({
   const flatBullets = Array.isArray(exp.bullets) ? exp.bullets : [];
 
   const renderBulletList = (bullets, groupIndex = null) => (
-    <ul className="space-y-1" style={{ margin: 0, padding: 0, listStyle: 'none' }}>
-      {bullets.map((bullet, bulletIndex) => (
-        <li key={bulletIndex} className="flex items-start gap-2 text-[10px] leading-[1.7] group/item" style={{ color: bodyColor }}>
-          <span style={{ color: accentColor }} className="mt-0.5 shrink-0">{bulletChar}</span>
-          <EditableText
-            value={bullet}
-            onChange={(v) => {
-              if (typeof groupIndex === 'number') {
-                onEdit('exp_group_bullet', { i: idx, j: groupIndex, k: bulletIndex, v });
-                return;
-              }
-              onEdit('exp_bullet', { i: idx, j: bulletIndex, v });
-            }}
-            tag="span"
-            className="flex-1"
-          />
-          <DeleteButton
-            onClick={() => {
-              if (typeof groupIndex === 'number') {
-                onEdit('exp_group_bullet_del', { i: idx, j: groupIndex, k: bulletIndex });
-                return;
-              }
-              onEdit('exp_bullet_del', { i: idx, j: bulletIndex });
-            }}
-          />
-        </li>
-      ))}
-    </ul>
+    <EditableText
+      value={bulletBlockValue(bullets, bulletChar)}
+      onChange={(v) => {
+        const nextBullets = parseBulletBlock(v);
+        if (typeof groupIndex === 'number') {
+          const current = bullets || [];
+          nextBullets.forEach((item, bulletIndex) => {
+            if (current[bulletIndex] !== undefined) onEdit('exp_group_bullet', { i: idx, j: groupIndex, k: bulletIndex, v: item });
+            else onEdit('exp_group_bullet_add', { i: idx, j: groupIndex });
+          });
+          nextBullets.forEach((item, bulletIndex) => {
+            if (current[bulletIndex] === undefined) onEdit('exp_group_bullet', { i: idx, j: groupIndex, k: bulletIndex, v: item });
+          });
+          for (let bulletIndex = current.length - 1; bulletIndex >= nextBullets.length; bulletIndex -= 1) {
+            onEdit('exp_group_bullet_del', { i: idx, j: groupIndex, k: bulletIndex });
+          }
+          return;
+        }
+        const current = bullets || [];
+        nextBullets.forEach((item, bulletIndex) => {
+          if (current[bulletIndex] !== undefined) onEdit('exp_bullet', { i: idx, j: bulletIndex, v: item });
+          else onEdit('exp_bullet_add', { i: idx });
+        });
+        nextBullets.forEach((item, bulletIndex) => {
+          if (current[bulletIndex] === undefined) onEdit('exp_bullet', { i: idx, j: bulletIndex, v: item });
+        });
+        for (let bulletIndex = current.length - 1; bulletIndex >= nextBullets.length; bulletIndex -= 1) {
+          onEdit('exp_bullet_del', { i: idx, j: bulletIndex });
+        }
+      }}
+      tag="div"
+      multiline
+      bulletBlock
+      className="flex-1"
+      style={{ whiteSpace: 'pre-line', color: bodyColor, fontSize: 10, lineHeight: 1.7 }}
+    />
   );
 
   return (

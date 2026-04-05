@@ -611,7 +611,6 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [photoName, setPhotoName] = useState(initialDraft?.photoName || '');
-  const [savePulse, setSavePulse] = useState(false);
   const [rewriteKey, setRewriteKey] = useState('');
   const [form, setForm] = useState(() => normalizeFormDraft(initialDraft?.form || {}));
 
@@ -624,9 +623,6 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
         FORM_STORAGE_KEY,
         JSON.stringify({ mode, formStep, pasteText, photoName, form })
       );
-      setSavePulse(true);
-      const timer = setTimeout(() => setSavePulse(false), 1000);
-      return () => clearTimeout(timer);
     } catch {
       return undefined;
     }
@@ -942,7 +938,6 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
         setFormStep={setFormStep}
         formSteps={FORM_STEPS}
         completion={completion}
-        savePulse={savePulse}
         photoName={photoName}
         photoRef={photoRef}
         handlePhoto={handlePhoto}
@@ -984,7 +979,7 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
       <div className="upload-page-orb upload-page-orb--mint" />
       <div className="upload-page-orb upload-page-orb--sky" />
 
-      <div className="upload-page-grid fade-up">
+      <div className="upload-page-grid">
         <section className="upload-intro-card premium-surface">
           <div className="upload-step-chip">Premium Intake Flow</div>
           <h1 className="upload-title">Build your resume from a polished upload studio.</h1>
@@ -1022,8 +1017,8 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
                 <p className="upload-preview-pill">Preferred intake order</p>
                 <h3>Lead with structure. Keep import as a fallback.</h3>
               </div>
-              <span className={`upload-preview-status${savePulse ? ' upload-preview-status--live' : ''}`}>
-                {savePulse ? 'Draft saved' : 'Autosaves locally'}
+              <span className="upload-preview-status">
+                Autosaves locally
               </span>
             </div>
             <div className="upload-preview-steps">

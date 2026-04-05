@@ -10,6 +10,7 @@ import CertificationsRenderer from '../components/CertificationsRenderer';
 import ProjectSection from '../components/ProjectSection';
 import { isStructuredProjectSection } from '../utils/projectSections';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { bulletBlockValue, parseBulletBlock } from '../utils/bulletBlocks';
 
 const DEFAULTS = {
   accent: '#9CA3B5',
@@ -83,22 +84,32 @@ export default function DesignerSlate({
       lineHeight = 1.55,
       bulletEdit,
       bulletDelete,
-      gap = 8,
-      marginBottom = 4,
+      bulletAdd,
     } = options;
 
-    return (bullets || []).map((bullet, bulletIndex) => (
-      <div key={bulletIndex} className="group/item" style={{ display: 'flex', gap, alignItems: 'flex-start', marginTop: 3, marginBottom }}>
-        <span style={{ color: dotColor, opacity: 0.78, marginTop: 5, fontSize: 8, flexShrink: 0 }}>&#9679;</span>
-        <EditableText
-          value={bullet}
-          onChange={(v) => bulletEdit(bulletIndex, v)}
-          tag="span"
-          style={{ flex: 1, fontSize: fontSize + fontDelta, color: textColor, lineHeight }}
-        />
-        <DeleteButton onClick={() => bulletDelete(bulletIndex)} />
-      </div>
-    ));
+    return (
+      <EditableText
+        value={bulletBlockValue(bullets, '•')}
+        onChange={(v) => {
+          const nextBullets = parseBulletBlock(v);
+          const current = bullets || [];
+          nextBullets.forEach((item, bulletIndex) => {
+            if (current[bulletIndex] !== undefined) bulletEdit(bulletIndex, item);
+            else bulletAdd?.();
+          });
+          nextBullets.forEach((item, bulletIndex) => {
+            if (current[bulletIndex] === undefined) bulletEdit(bulletIndex, item);
+          });
+          for (let bulletIndex = current.length - 1; bulletIndex >= nextBullets.length; bulletIndex -= 1) {
+            bulletDelete(bulletIndex);
+          }
+        }}
+        tag="div"
+        multiline
+        bulletBlock
+        style={{ whiteSpace: 'pre-line', fontSize: fontSize + fontDelta, color: textColor, lineHeight }}
+      />
+    );
   };
 
   const renderDesignerExperience = (exp, index, variant = 'main') => {
@@ -187,8 +198,7 @@ export default function DesignerSlate({
                   lineHeight: isSidebar ? 1.55 : 1.5,
                   bulletEdit: (bulletIndex, v) => onEdit('exp_group_bullet', { i: index, j: sectionIndex, k: bulletIndex, v }),
                   bulletDelete: (bulletIndex) => onEdit('exp_group_bullet_del', { i: index, j: sectionIndex, k: bulletIndex }),
-                  gap: isSidebar ? 8 : 10,
-                  marginBottom: isSidebar ? 0 : 4,
+                  bulletAdd: () => onEdit('exp_group_bullet_add', { i: index, j: sectionIndex }),
                 })}
                 <div style={{ display: 'flex', gap: 10, marginTop: 5 }}>
                   <AddButton onClick={() => onEdit('exp_group_bullet_add', { i: index, j: sectionIndex })} label="bullet" />
@@ -203,8 +213,7 @@ export default function DesignerSlate({
               lineHeight: isSidebar ? 1.55 : 1.5,
               bulletEdit: (bulletIndex, v) => onEdit('exp_bullet', { i: index, j: bulletIndex, v }),
               bulletDelete: (bulletIndex) => onEdit('exp_bullet_del', { i: index, j: bulletIndex }),
-              gap: isSidebar ? 8 : 10,
-              marginBottom: isSidebar ? 0 : 4,
+              bulletAdd: () => onEdit('exp_bullet_add', { i: index }),
             })}
           </div>
         ) : (
@@ -216,8 +225,7 @@ export default function DesignerSlate({
               lineHeight: isSidebar ? 1.55 : 1.5,
               bulletEdit: (bulletIndex, v) => onEdit('exp_bullet', { i: index, j: bulletIndex, v }),
               bulletDelete: (bulletIndex) => onEdit('exp_bullet_del', { i: index, j: bulletIndex }),
-              gap: isSidebar ? 8 : 10,
-              marginBottom: isSidebar ? 0 : 4,
+              bulletAdd: () => onEdit('exp_bullet_add', { i: index }),
             })}
           </div>
         )}
@@ -401,8 +409,8 @@ export default function DesignerSlate({
     if (sectionId === 'experience') {
       return (
         <DraggableSection key={sectionId} id={sectionId}>
-          <MainSectionShell title={L.experience} onRename={v => onEdit('section_rename', { sectionId: 'experience', v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={mainSectionLift}>
-            <div style={{ marginTop: -8 }}>
+          <MainSectionShell title={L.experience} onRename={v => onEdit('section_rename', { sectionId: 'experience', v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={0}>
+            <div style={{ marginTop: 4 }}>
             <SortableContext items={d.experience?.map(e => `exp-${e._id}`) || []} strategy={verticalListSortingStrategy}>
               {d.experience?.map((exp, i) => (
                 <DraggableSection key={exp._id} id={`exp-${exp._id}`}>
@@ -411,7 +419,7 @@ export default function DesignerSlate({
               ))}
             </SortableContext>
             </div>
-            <div style={{ marginTop: -3 }}>
+            <div style={{ marginTop: 8 }}>
               <AddButton onClick={() => onEdit('exp_add', {})} label="experience" />
             </div>
           </MainSectionShell>

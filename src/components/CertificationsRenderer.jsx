@@ -1,11 +1,13 @@
 import EditableText from './EditableText';
 import AddButton from './AddButton';
 import DeleteButton from './DeleteButton';
+import { bulletBlockValue, parseBulletBlock } from '../utils/bulletBlocks';
+import { syncIndexedList } from '../utils/blockListEditing';
 
 const VARIANTS = {
-  'simple-list':  SimpleList,
-  'badge-tags':   BadgeTags,
-  'check-list':   CheckList,
+  'simple-list': SimpleList,
+  'badge-tags': BadgeTags,
+  'check-list': CheckList,
   'compact-rows': CompactRows,
 };
 
@@ -34,29 +36,30 @@ export default function CertificationsRenderer({
   );
 }
 
-/* ════════════════════════════════════════
-   VARIANT 1 — simple-list
-   Diamond bullet + text
-   ════════════════════════════════════════ */
-function SimpleList({ certs, onEdit, accent, text, size, font }) {
+function syncCerts(certs, onEdit, nextItems) {
+  syncIndexedList(certs, nextItems, {
+    changeItem: (i, value) => onEdit('cert', { i, v: value }),
+    addItem: () => onEdit('cert_add', {}),
+    deleteItem: (i) => onEdit('cert_del', { i }),
+  });
+}
+
+function SimpleList({ certs, onEdit, text, size, font }) {
   return (
     <div style={{ fontFamily: font }}>
-      {certs.map((cert, i) => (
-        <div key={i} className="group/item" style={{ display: 'flex', alignItems: 'start', gap: 6, marginBottom: 4 }}>
-          <span style={{ color: accent, fontSize: size - 1, marginTop: 2, flexShrink: 0, lineHeight: 1 }}>&#9670;</span>
-          <EditableText value={cert} onChange={v => onEdit('cert', { i, v })} tag="span" style={{ fontSize: size, color: text, flex: 1 }} />
-          <DeleteButton onClick={() => onEdit('cert_del', { i })} />
-        </div>
-      ))}
+      <EditableText
+        value={bulletBlockValue(certs, '\u25C6')}
+        onChange={(v) => syncCerts(certs, onEdit, parseBulletBlock(v))}
+        tag="div"
+        multiline
+        bulletBlock
+        style={{ fontSize: size, color: text, lineHeight: 1.6, whiteSpace: 'pre-line' }}
+      />
       <AddButton onClick={() => onEdit('cert_add', {})} label="certification" />
     </div>
   );
 }
 
-/* ════════════════════════════════════════
-   VARIANT 2 — badge-tags
-   Each cert in a pill/badge
-   ════════════════════════════════════════ */
 function BadgeTags({ certs, onEdit, accent, text, size, font }) {
   return (
     <div style={{ fontFamily: font }}>
@@ -75,7 +78,7 @@ function BadgeTags({ certs, onEdit, accent, text, size, font }) {
               border: `1px solid ${accent}30`,
             }}
           >
-            <EditableText value={cert} onChange={v => onEdit('cert', { i, v })} tag="span" style={{ fontSize: size, color: text }} />
+            <EditableText value={cert} onChange={(v) => onEdit('cert', { i, v })} tag="span" style={{ fontSize: size, color: text }} />
             <DeleteButton onClick={() => onEdit('cert_del', { i })} />
           </div>
         ))}
@@ -85,41 +88,33 @@ function BadgeTags({ certs, onEdit, accent, text, size, font }) {
   );
 }
 
-/* ════════════════════════════════════════
-   VARIANT 3 — check-list
-   Checkmark icon + text
-   ════════════════════════════════════════ */
-function CheckList({ certs, onEdit, accent, text, size, font }) {
+function CheckList({ certs, onEdit, text, size, font }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontFamily: font }}>
-      {certs.map((cert, i) => (
-        <div key={i} className="group/item" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ color: accent, fontSize: size, flexShrink: 0, lineHeight: 1 }}>✓</span>
-          <EditableText value={cert} onChange={v => onEdit('cert', { i, v })} tag="span" style={{ fontSize: size, color: text, flex: 1 }} />
-          <DeleteButton onClick={() => onEdit('cert_del', { i })} />
-        </div>
-      ))}
+      <EditableText
+        value={bulletBlockValue(certs, '\u2713')}
+        onChange={(v) => syncCerts(certs, onEdit, parseBulletBlock(v))}
+        tag="div"
+        multiline
+        bulletBlock
+        style={{ fontSize: size, color: text, lineHeight: 1.6, whiteSpace: 'pre-line' }}
+      />
       <AddButton onClick={() => onEdit('cert_add', {})} label="certification" />
     </div>
   );
 }
 
-/* ════════════════════════════════════════
-   VARIANT 4 — compact-rows
-   Subtle bottom border between entries
-   ════════════════════════════════════════ */
-function CompactRows({ certs, onEdit, accent, text, size, font }) {
+function CompactRows({ certs, onEdit, text, size, font }) {
   return (
     <div style={{ fontFamily: font }}>
-      {certs.map((cert, i) => (
-        <div key={i} className="group/item">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 0' }}>
-            <EditableText value={cert} onChange={v => onEdit('cert', { i, v })} tag="span" style={{ fontSize: size, color: text, flex: 1 }} />
-            <DeleteButton onClick={() => onEdit('cert_del', { i })} />
-          </div>
-          {i < certs.length - 1 && <div style={{ height: 1, background: `${accent}18` }} />}
-        </div>
-      ))}
+      <EditableText
+        value={bulletBlockValue(certs, '\u25C6')}
+        onChange={(v) => syncCerts(certs, onEdit, parseBulletBlock(v))}
+        tag="div"
+        multiline
+        bulletBlock
+        style={{ fontSize: size, color: text, lineHeight: 1.6, whiteSpace: 'pre-line' }}
+      />
       <AddButton onClick={() => onEdit('cert_add', {})} label="certification" />
     </div>
   );

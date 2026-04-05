@@ -8,6 +8,7 @@ import EducationRenderer from '../components/EducationRenderer';
 import CertificationsRenderer from '../components/CertificationsRenderer';
 import DraggableSection from '../components/DraggableSection';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { bulletBlockValue, parseBulletBlock } from '../utils/bulletBlocks';
 
 const DEFAULTS = {
   accent: '#38BDF8',
@@ -35,36 +36,35 @@ export default function DevTerminal({ data, colors = {}, globalFont = {}, onEdit
 
   const commentStyle = { color: '#475569', fontSize: baseFontSize, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: headingGap };
   const L = { summary: 'Summary', experience: 'Experience', skills: 'Skills', education: 'Education', certifications: 'Certifications', ...sectionLabels };
-
   const renderTerminalBullets = (bullets, index, groupIndex = null) => (
-    <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-      {(bullets || []).map((bullet, bulletIndex) => (
-        <li key={bulletIndex} className="flex items-start gap-2 group/item" style={{ fontSize: baseFontSize, lineHeight: summaryLineHeight, color: textColor, marginBottom: 2 }}>
-          <span style={{ color: accent, flexShrink: 0, marginTop: 1 }}>{'>'}</span>
-          <EditableText
-            value={bullet}
-            onChange={(v) => {
-              if (typeof groupIndex === 'number') {
-                onEdit('exp_group_bullet', { i: index, j: groupIndex, k: bulletIndex, v });
-              } else {
-                onEdit('exp_bullet', { i: index, j: bulletIndex, v });
-              }
-            }}
-            tag="span"
-            className="flex-1"
-          />
-          <DeleteButton
-            onClick={() => {
-              if (typeof groupIndex === 'number') {
-                onEdit('exp_group_bullet_del', { i: index, j: groupIndex, k: bulletIndex });
-              } else {
-                onEdit('exp_bullet_del', { i: index, j: bulletIndex });
-              }
-            }}
-          />
-        </li>
-      ))}
-    </ul>
+    <EditableText
+      value={bulletBlockValue(bullets, '>')}
+      onChange={(v) => {
+        const nextBullets = parseBulletBlock(v);
+        const current = bullets || [];
+        nextBullets.forEach((item, bulletIndex) => {
+          if (typeof groupIndex === 'number') {
+            if (current[bulletIndex] !== undefined) onEdit('exp_group_bullet', { i: index, j: groupIndex, k: bulletIndex, v: item });
+            else onEdit('exp_group_bullet_add', { i: index, j: groupIndex });
+          } else if (current[bulletIndex] !== undefined) onEdit('exp_bullet', { i: index, j: bulletIndex, v: item });
+          else onEdit('exp_bullet_add', { i: index });
+        });
+        nextBullets.forEach((item, bulletIndex) => {
+          if (current[bulletIndex] === undefined) {
+            if (typeof groupIndex === 'number') onEdit('exp_group_bullet', { i: index, j: groupIndex, k: bulletIndex, v: item });
+            else onEdit('exp_bullet', { i: index, j: bulletIndex, v: item });
+          }
+        });
+        for (let bulletIndex = current.length - 1; bulletIndex >= nextBullets.length; bulletIndex -= 1) {
+          if (typeof groupIndex === 'number') onEdit('exp_group_bullet_del', { i: index, j: groupIndex, k: bulletIndex });
+          else onEdit('exp_bullet_del', { i: index, j: bulletIndex });
+        }
+      }}
+      tag="div"
+      multiline
+      bulletBlock
+      style={{ whiteSpace: 'pre-line', fontSize: baseFontSize, lineHeight: summaryLineHeight, color: textColor }}
+    />
   );
 
   const renderTerminalExperience = (exp, index) => {

@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { useSortable, defaultAnimateLayoutChanges } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useSectionActions } from './SectionActionsContext';
 
 function animateLayoutChanges(args) {
   const { isSorting, wasDragging } = args;
@@ -16,6 +17,7 @@ const SORTABLE_TRANSITION = {
 };
 
 function DraggableSection({ id, children }) {
+  const { removeSection } = useSectionActions();
   const {
     attributes,
     listeners,
@@ -38,12 +40,13 @@ function DraggableSection({ id, children }) {
           scaleY: 1,
         })
       : undefined,
-    transition: isDragging || transform ? (transition || undefined) : undefined,
+    transition: isDragging ? (transition || undefined) : undefined,
     position: 'relative',
     zIndex: isDragging ? 50 : undefined,
     willChange: isDragging ? 'transform' : undefined,
     transformOrigin: 'center top',
   };
+  const canRemove = typeof id === 'string' && !id.startsWith('exp-') && typeof removeSection === 'function';
 
   return (
     <div
@@ -53,7 +56,20 @@ function DraggableSection({ id, children }) {
       data-section-id={id}
       className={isDragging ? 'draggable-section draggable-section--dragging' : 'draggable-section'}
     >
-      {/* Drag handle — visual indicator + keyboard a11y */}
+      {canRemove && (
+        <button
+          type="button"
+          className="draggable-section-remove"
+          title="Remove section"
+          onClick={(event) => {
+            event.stopPropagation();
+            removeSection(id);
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          Remove
+        </button>
+      )}
       <div
         {...attributes}
         className="draggable-section-handle"

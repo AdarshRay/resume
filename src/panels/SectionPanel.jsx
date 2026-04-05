@@ -76,16 +76,18 @@ export default function SectionPanel({ data, customSections, onEdit, template, s
         <div className="studio-stack">
           <div className="studio-card">
             <div className="studio-card-head">
-              <div>
+              <div className="studio-card-head-main">
                 <span className="studio-icon-chip">PS</span>
-                <div>
+                <div className="studio-card-head-copy">
                   <strong>{sectionLabels.summary || 'Profile Summary'}</strong>
                   <p>Keep the opening sharp and recruiter-friendly.</p>
                 </div>
               </div>
-              <button type="button" className="studio-action-btn" onClick={() => onAIRewrite?.('summary')}>
-                Rewrite
-              </button>
+              <div className="studio-card-head-actions">
+                <button type="button" className="studio-action-btn" onClick={() => onAIRewrite?.('summary')}>
+                  Rewrite
+                </button>
+              </div>
             </div>
             <InputField
               label="Section heading"
@@ -105,16 +107,18 @@ export default function SectionPanel({ data, customSections, onEdit, template, s
 
           <div className="studio-card">
             <div className="studio-card-head">
-              <div>
+              <div className="studio-card-head-main">
                 <span className="studio-icon-chip">EX</span>
-                <div>
+                <div className="studio-card-head-copy">
                   <strong>{sectionLabels.experience || 'Experience'}</strong>
                   <p>Add detailed roles with stronger bullet points.</p>
                 </div>
               </div>
-              <button type="button" className="studio-action-btn" onClick={() => onEdit('exp_add')}>
-                Add role
-              </button>
+              <div className="studio-card-head-actions">
+                <button type="button" className="studio-action-btn" onClick={() => onEdit('exp_add')}>
+                  Add role
+                </button>
+              </div>
             </div>
             <InputField
               label="Section heading"
@@ -126,7 +130,10 @@ export default function SectionPanel({ data, customSections, onEdit, template, s
               {(data?.experience || []).map((item, index) => (
                 <div key={`${item._id || index}`} className="studio-repeat-card">
                   <div className="studio-repeat-head">
-                    <strong>{item.role || `Role ${index + 1}`}</strong>
+                    <div className="studio-repeat-title">
+                      <strong>{item.role || `Role ${index + 1}`}</strong>
+                      <span>{item.company || 'Add company and timeline details below.'}</span>
+                    </div>
                     <div className="studio-repeat-actions">
                       <button type="button" className="studio-action-btn" onClick={() => onAIRewrite?.('experience-bullets', { index })}>
                         Rewrite bullets
@@ -166,7 +173,10 @@ export default function SectionPanel({ data, customSections, onEdit, template, s
                   />
                   <div className="studio-repeat-stack">
                     <div className="studio-repeat-head">
-                      <strong>Grouped sub-sections</strong>
+                      <div className="studio-repeat-title">
+                        <strong>Grouped sub-sections</strong>
+                        <span>Use these for workstreams, modules, or account-specific responsibilities.</span>
+                      </div>
                       <button type="button" className="studio-action-btn" onClick={() => onEdit('exp_group_add', { i: index })}>
                         Add sub-section
                       </button>
@@ -174,7 +184,10 @@ export default function SectionPanel({ data, customSections, onEdit, template, s
                     {(item.sections || []).map((section, sectionIndex) => (
                       <div key={`${item._id || index}-section-${sectionIndex}`} className="studio-repeat-card">
                         <div className="studio-repeat-head">
-                          <strong>{section.heading || `Sub-section ${sectionIndex + 1}`}</strong>
+                          <div className="studio-repeat-title">
+                            <strong>{section.heading || `Sub-section ${sectionIndex + 1}`}</strong>
+                            <span>Organize a focused block of bullets under a named workstream.</span>
+                          </div>
                           <button type="button" className="studio-link-btn" onClick={() => onEdit('exp_group_del', { i: index, j: sectionIndex })}>
                             Remove
                           </button>
@@ -219,16 +232,18 @@ export default function SectionPanel({ data, customSections, onEdit, template, s
 
           <div className="studio-card">
             <div className="studio-card-head">
-              <div>
+              <div className="studio-card-head-main">
                 <span className="studio-icon-chip">SK</span>
-                <div>
+                <div className="studio-card-head-copy">
                   <strong>{sectionLabels.skills || 'Skills'}</strong>
                   <p>Use one line per skill for easier editing and clearer ATS coverage.</p>
                 </div>
               </div>
-              <button type="button" className="studio-action-btn" onClick={() => onAIRewrite?.('skills')}>
-                Rewrite
-              </button>
+              <div className="studio-card-head-actions">
+                <button type="button" className="studio-action-btn" onClick={() => onAIRewrite?.('skills')}>
+                  Rewrite
+                </button>
+              </div>
             </div>
             <InputField
               label="Section heading"
@@ -248,16 +263,18 @@ export default function SectionPanel({ data, customSections, onEdit, template, s
 
           <div className="studio-card">
             <div className="studio-card-head">
-              <div>
+              <div className="studio-card-head-main">
                 <span className="studio-icon-chip">ED</span>
-                <div>
+                <div className="studio-card-head-copy">
                   <strong>{sectionLabels.education || 'Education'}</strong>
                   <p>Structure degree, institution, and year fields directly from the side studio.</p>
                 </div>
               </div>
-              <button type="button" className="studio-action-btn" onClick={() => onEdit('edu_add')}>
-                Add education
-              </button>
+              <div className="studio-card-head-actions">
+                <button type="button" className="studio-action-btn" onClick={() => onEdit('edu_add')}>
+                  Add education
+                </button>
+              </div>
             </div>
             <InputField
               label="Section heading"
@@ -269,7 +286,10 @@ export default function SectionPanel({ data, customSections, onEdit, template, s
               {(data?.education || []).map((item, index) => (
                 <div key={`edu-${index}`} className="studio-repeat-card">
                   <div className="studio-repeat-head">
-                    <strong>{item.degree || `Education ${index + 1}`}</strong>
+                    <div className="studio-repeat-title">
+                      <strong>{item.degree || `Education ${index + 1}`}</strong>
+                      <span>{item.school || 'Add institution and year below.'}</span>
+                    </div>
                     <button type="button" className="studio-link-btn" onClick={() => onEdit('edu_del', { i: index })}>
                       Remove
                     </button>
@@ -286,16 +306,18 @@ export default function SectionPanel({ data, customSections, onEdit, template, s
 
           <div className="studio-card">
             <div className="studio-card-head">
-              <div>
+              <div className="studio-card-head-main">
                 <span className="studio-icon-chip">CF</span>
-                <div>
+                <div className="studio-card-head-copy">
                   <strong>{sectionLabels.certifications || 'Certifications'}</strong>
                   <p>List licenses, badges, and formal credentials in a cleaner stack.</p>
                 </div>
               </div>
-              <button type="button" className="studio-action-btn" onClick={() => onAIRewrite?.('certifications')}>
-                Rewrite
-              </button>
+              <div className="studio-card-head-actions">
+                <button type="button" className="studio-action-btn" onClick={() => onAIRewrite?.('certifications')}>
+                  Rewrite
+                </button>
+              </div>
             </div>
             <InputField
               label="Section heading"
@@ -341,9 +363,9 @@ export default function SectionPanel({ data, customSections, onEdit, template, s
 
         <div className="studio-card studio-card--composer">
           <div className="studio-card-head">
-            <div>
+            <div className="studio-card-head-main">
               <span className="studio-icon-chip">{selectedTemplate.icon}</span>
-              <div>
+              <div className="studio-card-head-copy">
                 <strong>{selectedTemplate.title}</strong>
                 <p>{selectedTemplate.description}</p>
               </div>
@@ -397,14 +419,14 @@ export default function SectionPanel({ data, customSections, onEdit, template, s
               return (
                 <div key={section.id} className={`studio-card${isOpen ? ' studio-card--open' : ''}`}>
                   <div className="studio-card-head">
-                    <div>
+                    <div className="studio-card-head-main">
                       <span className="studio-icon-chip">{section.title.slice(0, 2).toUpperCase()}</span>
-                      <div>
+                      <div className="studio-card-head-copy">
                         <strong>{section.title}</strong>
                         <p>{section.placement === 'side' ? 'Sidebar section' : 'Main section'}</p>
                       </div>
                     </div>
-                    <div className="studio-repeat-actions">
+                    <div className="studio-card-head-actions studio-repeat-actions">
                       <button type="button" className="studio-action-btn" onClick={() => onAIRewrite?.('custom-section', { id: section.id })} disabled={isStructuredProjectSection}>
                         Rewrite
                       </button>
