@@ -5394,10 +5394,16 @@ button:focus-visible,
 }
 
 .draggable-section-handle{
+  position:absolute;
   left:10px;
+  top:14px;
   width:28px;
   height:38px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
   border-radius:14px;
+  cursor:grab;
   color:rgba(71,85,105,.78);
   background:rgba(255,255,255,.92);
   border:1px solid rgba(226,232,240,.92);
@@ -5406,6 +5412,8 @@ button:focus-visible,
   -webkit-backdrop-filter:none !important;
   opacity:0;
   transition:opacity .14s ease, color .14s ease, background .14s ease, box-shadow .14s ease;
+  z-index:10;
+  touch-action:none;
 }
 .draggable-section-remove{
   position:absolute;
@@ -5438,7 +5446,9 @@ button:focus-visible,
   color:var(--c-accent);
   background:rgba(255,255,255,.98);
   box-shadow:0 10px 20px rgba(110,231,183,.14);
-  transform:translateY(-50%);
+}
+.draggable-section-handle:active{
+  cursor:grabbing;
 }
 
 .a4-page [style*="#3E4456"] .draggable-section:hover,
