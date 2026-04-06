@@ -1,9 +1,15 @@
 /**
  * Robust text extraction from PDF, DOCX, DOC, TXT files.
- * PDF.js loaded from CDN; Mammoth imported as npm module for reliability.
+ * PDF.js and Mammoth are bundled with the app to avoid CDN-only runtime dependencies.
  */
 
 import mammothLib from 'mammoth/mammoth.browser.min.js';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import pdfWorkerSrc from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
+
+if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+}
 
 export async function extractText(file) {
   const name = file.name || '';
@@ -30,18 +36,6 @@ export async function extractText(file) {
  * Detects large horizontal gaps to preserve column/field separation.
  */
 async function extractPdf(file) {
-  const pdfjsLib = await waitForGlobal('pdfjsLib', 8000);
-  if (!pdfjsLib) {
-    throw new Error(
-      'PDF reader failed to load. Please check your internet connection and refresh the page.'
-    );
-  }
-
-  if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  }
-
   try {
     const arrayBuffer = await file.arrayBuffer();
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
@@ -253,7 +247,7 @@ function dedupeSegmentLines(lines) {
  * lists, paragraphs), then falls back to raw text extraction.
  */
 async function extractDocx(file) {
-  const mammoth = mammothLib || window.mammoth;
+  const mammoth = mammothLib;
 
   if (!mammoth || typeof mammoth.extractRawText !== 'function') {
     throw new Error(
@@ -395,27 +389,4 @@ function htmlToStructuredText(html) {
  */
 function stripTags(html) {
   return html.replace(/<[^>]+>/g, '');
-}
-
-/**
- * Wait for a global variable to be available (CDN scripts).
- */
-function waitForGlobal(name, timeoutMs = 8000) {
-  return new Promise((resolve) => {
-    if (window[name]) {
-      resolve(window[name]);
-      return;
-    }
-
-    const start = Date.now();
-    const interval = setInterval(() => {
-      if (window[name]) {
-        clearInterval(interval);
-        resolve(window[name]);
-      } else if (Date.now() - start > timeoutMs) {
-        clearInterval(interval);
-        resolve(null);
-      }
-    }, 200);
-  });
 }

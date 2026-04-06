@@ -11,7 +11,7 @@ export default function safe(input) {
     phone: s(d.phone, ""),
     location: s(d.location, ""),
     summary: s(d.summary, "Professional summary."),
-    experience: a(d.experience).map((e, i) => ({
+    experience: a(d.experience).map((e) => ({
       _id: e?._id || `e${_nextExpId++}`,
       role: s(e?.role, "Role"), company: s(e?.company, "Company"),
       period: s(e?.period, "Date"),

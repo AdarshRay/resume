@@ -6,7 +6,7 @@ export default function ExpBlock({ exp, idx, onEdit, headingColor, bodyColor, ac
   const groupedSections = Array.isArray(exp.sections) ? exp.sections.filter((section) => section?.heading || (section?.bullets || []).length) : [];
 
   return (
-    <div className="group/exp" style={{ marginBottom: 10 }}>
+    <div className="group/exp" style={{ marginBottom: 4 }}>
       <div className="flex justify-between items-baseline">
         <EditableText
           value={exp.role}
@@ -42,7 +42,7 @@ export default function ExpBlock({ exp, idx, onEdit, headingColor, bodyColor, ac
       {groupedSections.length > 0 ? (
         <div style={{ marginTop: 4 }}>
           {groupedSections.map((section, j) => (
-            <div key={j} className="group/item" style={{ marginBottom: 8 }}>
+            <div key={j} className="group/item" style={{ marginBottom: 5 }}>
               <EditableText
                 value={section.heading}
                 onChange={v => onEdit('exp_group_heading', { i: idx, j, v })}

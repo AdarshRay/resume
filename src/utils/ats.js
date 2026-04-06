@@ -76,6 +76,7 @@ export function analyzeJobFit(data, jobDescription) {
 
   const weightedCoverage = (matchedKeywords.length / Math.max(jdKeywords.length, 1)) * 100;
   const score = Math.max(22, Math.min(98, Math.round(weightedCoverage * 0.72 + Math.min(skillsCoverage, 12) * 2 + Math.min(summaryCoverage, 6) * 2)));
+  const priorityKeywords = missingKeywords.slice(0, 6);
 
   const strengths = [];
   if (summaryCoverage >= 4) strengths.push('Your summary already mirrors several target-role keywords.');
@@ -84,9 +85,30 @@ export function analyzeJobFit(data, jobDescription) {
   if (customCoverage >= 4) strengths.push('Supporting sections are reinforcing relevant context beyond the main experience block.');
 
   const suggestions = [];
-  if (summaryCoverage < 4) suggestions.push('Rewrite the summary to mirror the target role, domain, and seniority more directly.');
-  if (skillsCoverage < 6) suggestions.push('Add missing platform, methodology, or domain terms into skills for faster ATS matching.');
-  if (experienceCoverage < 10) suggestions.push('Thread job-description language into accomplishment bullets, not just section titles.');
+  if (summaryCoverage < 4) {
+    suggestions.push(
+      priorityKeywords.length
+        ? `Rewrite the summary to mirror the target role more directly, especially with terms like ${priorityKeywords.slice(0, 2).join(', ')}.`
+        : 'Rewrite the summary to mirror the target role, domain, and seniority more directly.'
+    );
+  }
+  if (skillsCoverage < 6) {
+    suggestions.push(
+      priorityKeywords.length
+        ? `Add missing platform, methodology, or domain terms into skills, starting with ${priorityKeywords.slice(0, 3).join(', ')} where truthful.`
+        : 'Add missing platform, methodology, or domain terms into skills for faster ATS matching.'
+    );
+  }
+  if (experienceCoverage < 10) {
+    suggestions.push(
+      priorityKeywords.length
+        ? `Thread job-description language into accomplishment bullets, not just section titles, using terms like ${priorityKeywords.slice(0, 3).join(', ')} in measurable examples.`
+        : 'Thread job-description language into accomplishment bullets, not just section titles.'
+    );
+  }
+  if (customCoverage < 3 && priorityKeywords.length) {
+    suggestions.push(`Use a supporting section such as Projects or Certifications to naturally cover keywords like ${priorityKeywords.slice(0, 2).join(', ')}.`);
+  }
   if (missingKeywords.length) suggestions.push(`Work in keywords like ${missingKeywords.slice(0, 4).join(', ')} where they are truthful and relevant.`);
 
   const focusAreas = [
@@ -96,12 +118,22 @@ export function analyzeJobFit(data, jobDescription) {
     { section: 'Supporting Sections', coverage: customCoverage },
   ].sort((a, b) => a.coverage - b.coverage);
 
+  const sectionGuidance = {
+    Summary: priorityKeywords.slice(0, 2),
+    Skills: priorityKeywords.slice(0, 4),
+    Experience: priorityKeywords.slice(0, 3),
+    'Supporting Sections': priorityKeywords.slice(2, 5),
+  };
+
   return {
     score,
     matchedKeywords: matchedKeywords.slice(0, 18),
     missingKeywords,
     suggestions: suggestions.slice(0, 4),
     strengths: strengths.slice(0, 4),
-    focusAreas,
+    focusAreas: focusAreas.map((item) => ({
+      ...item,
+      suggestedKeywords: sectionGuidance[item.section] || [],
+    })),
   };
 }

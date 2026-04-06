@@ -1,4 +1,4 @@
-const SIZES = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24];
+const SIZES = [8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 72];
 const FAMILIES = [
   { name: 'Outfit', val: "'Outfit',sans-serif" },
   { name: 'Newsreader', val: "'Newsreader',serif" },

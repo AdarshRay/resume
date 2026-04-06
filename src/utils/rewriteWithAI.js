@@ -1,3 +1,5 @@
+import { getAIRewriteEndpoint } from './aiConfig';
+
 function normalizeLines(text) {
   return String(text || '')
     .split('\n')
@@ -45,8 +47,8 @@ export async function rewriteTextWithAI(text, { scope = 'section', context = '' 
   const cleaned = String(text || '').trim();
   if (!cleaned) return cleaned;
 
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-  if (!apiKey) return fallbackRewrite(cleaned, scope);
+  const rewriteEndpoint = getAIRewriteEndpoint();
+  if (!rewriteEndpoint) return fallbackRewrite(cleaned, scope);
 
   try {
     const instructions = {
@@ -56,31 +58,28 @@ export async function rewriteTextWithAI(text, { scope = 'section', context = '' 
       resume: 'Rewrite this full resume draft to sound more polished and premium while preserving factual accuracy. Return plain text only.',
     };
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch(rewriteEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1200,
-        messages: [
-          {
-            role: 'user',
-            content: `${instructions[scope] || instructions.section}\n${context ? `Context: ${context}\n` : ''}\nText:\n${cleaned}`,
-          },
-        ],
+        scope,
+        context,
+        prompt: instructions[scope] || instructions.section,
+        text: cleaned,
       }),
     });
 
+    if (!response.ok) {
+      throw new Error(`Rewrite endpoint failed with ${response.status}`);
+    }
+
     const result = await response.json();
-    const rewritten = result?.content?.[0]?.text?.trim();
+    const rewritten = result?.text?.trim() || result?.output?.trim() || result?.content?.[0]?.text?.trim();
     return rewritten || fallbackRewrite(cleaned, scope);
   } catch (error) {
-    console.error('AI rewrite failed, using fallback:', error);
+    console.error('Rewrite endpoint failed, using built-in fallback:', error);
     return fallbackRewrite(cleaned, scope);
   }
 }

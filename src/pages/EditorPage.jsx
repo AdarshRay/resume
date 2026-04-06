@@ -22,6 +22,8 @@ import MainSection from '../components/MainSection';
 import generatePdf from '../utils/generatePdf';
 import { isStructuredProjectSection } from '../utils/projectSections';
 import { SectionActionsContext } from '../components/SectionActionsContext';
+import { getRewriteModeDescription, getRewriteModeLabel } from '../utils/aiConfig';
+import { bulletBlockValue, parseBulletBlock } from '../utils/bulletBlocks';
 
 import ExecutiveNavy from '../templates/ExecutiveNavy';
 import BoldCoral from '../templates/BoldCoral';
@@ -52,17 +54,59 @@ const NO_PHOTO = ['dev-terminal', 'clean-slate'];
 
 // Sections that must always stay in the main content column (never sidebar)
 const MAIN_ONLY_SECTIONS = ['summary', 'experience'];
+const PORTRAIT_ARC_LOCKED_COLUMNS = {
+  summary: 'side',
+  experience: 'main',
+  skills: 'side',
+  education: 'side',
+  certifications: 'side',
+};
+
+function getLockedColumn(template, sectionId) {
+  if (template === 'strategist-gold') {
+    return PORTRAIT_ARC_LOCKED_COLUMNS[sectionId] || null;
+  }
+  if (MAIN_ONLY_SECTIONS.includes(sectionId)) {
+    return 'main';
+  }
+  return null;
+}
 
 // A4 page height in pixels (matches A4Wrapper)
 const A4H = 1123;
 
 // Structural layout metadata per template (used to replicate layout on additional pages)
 const TEMPLATE_LAYOUTS = {
-  'executive-navy':  { columns: 2, sidebarSide: 'left',  sidebarWidth: 240, sidebarBg: '#1B2A4A', sidebarColor: '#cbd5e1', mainPadding: '18px 24px 16px 24px', page2SectionGap: 2, page2SidebarSectionGap: 8 },
-  'bold-coral':      { columns: 2, sidebarSide: 'right', sidebarFlex: 1,    mainFlex: 2, sidebarBg: 'transparent', sidebarBorder: true, sidebarColor: null, mainPadding: '0', sidebarPadding: '0 0 0 14px', bodyPadding: '18px var(--space-xl) 18px var(--space-xl)', bodyGap: 18, page2SectionGap: 6, page2SidebarSectionGap: 6 },
-  'strategist-gold': { columns: 2, sidebarSide: 'right', sidebarFlex: 1.2,  mainFlex: 3, sidebarBg: '#f8f6f0',    sidebarRadius: 10,  sidebarColor: null, mainPadding: '0', sidebarPadding: '14px 18px', bodyPadding: '24px var(--space-xl) 24px var(--space-xl)', bodyGap: 24, page2SectionGap: 12, page2SidebarSectionGap: 12 },
-  'dev-terminal':    { columns: 1, mainPadding: '36px 34px 28px 34px', defaultFont: "'JetBrains Mono',monospace", headingStyle: 'comment', bulletChar: '>', expBorderLeft: true, page2SectionGap: 12 },
-  'clean-slate':     { columns: 1, mainPadding: '38px 38px 30px 38px', page2SectionGap: 12 },
+  'executive-navy':  { columns: 2, sidebarSide: 'left',  sidebarWidth: 240, sidebarBg: '#1B2A4A', sidebarColor: '#cbd5e1', mainPadding: '6px 24px 16px 24px', page2SectionGap: 2, page2SidebarSectionGap: 8 },
+  'bold-coral':      { columns: 2, sidebarSide: 'right', sidebarFlex: 1,    mainFlex: 2, sidebarBg: 'transparent', sidebarBorder: true, sidebarColor: null, mainPadding: '0', sidebarPadding: '0 0 0 14px', bodyPadding: '8px var(--space-xl) 18px var(--space-xl)', bodyGap: 18, page2SectionGap: 2, page2SidebarSectionGap: 6 },
+  'strategist-gold': {
+    columns: 2,
+    sidebarSide: 'left',
+    sidebarWidth: 305,
+    sidebarBg: '#2D3E67',
+    sidebarColor: '#f3f5f9',
+    bodyPadding: 0,
+    mainPadding: '14px 34px 30px 34px',
+    sidebarPadding: '28px 24px 30px 24px',
+    page2BodyPadding: 0,
+    page2MainPadding: '10px 30px 24px 30px',
+    page2SidebarPadding: '24px 20px 24px 20px',
+    page2SectionGap: 2,
+    page2SidebarSectionGap: 16,
+    p2HeadingSize: 12,
+    p2HeadingWeight: 800,
+    p2HeadingLetterSpacing: '0.08em',
+    p2HeadingTransform: 'uppercase',
+    p2HeadingRuleColor: '#CBD3E0',
+    p2SidebarHeadingSize: 18,
+    p2SidebarHeadingWeight: 800,
+    p2SidebarHeadingLetterSpacing: '0.04em',
+    p2SidebarHeadingTransform: 'none',
+    p2SidebarHeadingColor: '#ffffff',
+    p2SidebarRuleColor: 'rgba(255,255,255,.45)',
+  },
+  'dev-terminal':    { columns: 1, mainPadding: '18px 34px 28px 34px', defaultFont: "'JetBrains Mono',monospace", headingStyle: 'comment', bulletChar: '>', expBorderLeft: true, page2SectionGap: 4 },
+  'clean-slate':     { columns: 1, mainPadding: '20px 38px 30px 38px', page2SectionGap: 4 },
   'designer-slate':  {
     columns: 2,
     sidebarSide: 'left',
@@ -71,14 +115,17 @@ const TEMPLATE_LAYOUTS = {
     sidebarColor: '#f5f7fb',
     bodyPadding: 0,
     sidebarPadding: '14px 20px 18px',
-    mainPadding: '12px 34px 16px 34px',
-    page2SectionGap: 2,
-    page2SidebarSectionGap: 8,
+    mainPadding: '4px 34px 16px 34px',
+    page2MainPaddingTop: 12,
+    page2SidebarPaddingTop: 12,
+    page2SectionGap: 0,
+    page2SidebarSectionGap: 6,
     p2HeadingSize: 19,
     p2HeadingWeight: 800,
     p2HeadingLetterSpacing: '0.1em',
     p2HeadingTransform: 'capitalize',
     p2HeadingRuleColor: 'rgba(61, 68, 86, .55)',
+    p2HeadingRuleWidth: 1,
     p2SidebarHeadingSize: 18,
     p2SidebarHeadingWeight: 800,
     p2SidebarHeadingLetterSpacing: '0.1em',
@@ -214,6 +261,7 @@ export default function EditorPage({
       suggestions: suggestions.slice(0, 3),
     };
   }, [data]);
+  const customSections = useMemo(() => data?.customSections || [], [data?.customSections]);
 
   // ── dnd-kit: drag context for reordering + cross-column dragging ──
   const [activeDragId, setActiveDragId] = useState(null);
@@ -225,6 +273,8 @@ export default function EditorPage({
   const lastDroppedSectionRef = useRef(null);
   const lastDropMetaRef = useRef(null);
   const [dragOverPage, setDragOverPage] = useState(null); // cross-page visual feedback: which page the pointer is over
+  const rewriteModeLabel = getRewriteModeLabel();
+  const rewriteModeDescription = getRewriteModeDescription();
 
   // Track individual experience items moved to pages 2+ (expId → pageNumber)
   const [expPageMap, setExpPageMap] = useState({});
@@ -234,6 +284,13 @@ export default function EditorPage({
   const [educationPageMap, setEducationPageMap] = useState({});
   const [certPageMap, setCertPageMap] = useState({});
   const [customItemPageMap, setCustomItemPageMap] = useState({});
+
+  useEffect(() => {
+    if (Object.keys(skillsPageMap).length) setSkillsPageMap({});
+    if (Object.keys(educationPageMap).length) setEducationPageMap({});
+    if (Object.keys(certPageMap).length) setCertPageMap({});
+    if (Object.keys(customItemPageMap).length) setCustomItemPageMap({});
+  }, [skillsPageMap, educationPageMap, certPageMap, customItemPageMap]);
 
   const sensors = useSensors(
     useSensor(BlockDragSensor, { activationConstraint: { distance: 5 } })
@@ -279,7 +336,7 @@ export default function EditorPage({
   // Helper: get sections assigned to a specific page, sorted by order
   const sectionsForPage = useCallback((pageNum) =>
     Object.entries(sectionLayout)
-      .filter(([_, v]) => v.page === pageNum)
+      .filter(([, v]) => v.page === pageNum)
       .sort((a, b) => a[1].order - b[1].order)
       .map(([id]) => id),
     [sectionLayout]
@@ -342,7 +399,64 @@ export default function EditorPage({
     return itemsForPage(section.items || [], customItemPageMap, (index) => `${section.id}:${index}`, pageNum);
   }, [customItemPageMap, itemsForPage]);
 
+  const customSectionEntriesForPage = useCallback((section, pageNum) => {
+    if (!section || isStructuredProjectSection(section)) {
+      return (section?.items || []).map((item, index) => ({ item, index }));
+    }
+    return (section.items || [])
+      .map((item, index) => ({ item, index }))
+      .filter(({ index }) => (customItemPageMap[`${section.id}:${index}`] || 1) === pageNum);
+  }, [customItemPageMap]);
+
+  const replaceCustomSectionPageItems = useCallback((section, visibleEntries, nextValue) => {
+    if (!section) return;
+
+    const nextVisibleItems = parseBulletBlock(nextValue);
+    const visibleIndexSet = new Set(visibleEntries.map(({ index }) => index));
+    const firstVisibleIndex = visibleEntries[0]?.index ?? section.items.length;
+    const nextItems = [];
+
+    let inserted = false;
+    (section.items || []).forEach((item, index) => {
+      if (visibleIndexSet.has(index)) {
+        if (!inserted) {
+          nextItems.push(...nextVisibleItems);
+          inserted = true;
+        }
+        return;
+      }
+
+      if (!inserted && index > firstVisibleIndex) {
+        nextItems.push(...nextVisibleItems);
+        inserted = true;
+      }
+
+      nextItems.push(item);
+    });
+
+    if (!inserted) {
+      nextItems.push(...nextVisibleItems);
+    }
+
+    onEdit('custom_section_replace_items', { id: section.id, items: nextItems });
+  }, [onEdit]);
+
   const page1Experience = useMemo(() => expForPage(1), [expForPage]);
+  const lastExperienceContentPage = useMemo(() => {
+    let lastPage = 1;
+
+    (data?.experience || []).forEach((exp) => {
+      lastPage = Math.max(lastPage, expPageMap[exp._id] || 1);
+      (exp.sections || []).forEach((_, sectionIndex) => {
+        lastPage = Math.max(lastPage, expGroupPageMap[`${exp._id}:group:${sectionIndex}`] || (expPageMap[exp._id] || 1));
+      });
+      (exp.bullets || []).forEach((_, bulletIndex) => {
+        lastPage = Math.max(lastPage, expBulletPageMap[`${exp._id}:bullet:${bulletIndex}`] || (expPageMap[exp._id] || 1));
+      });
+    });
+
+    return lastPage;
+  }, [data?.experience, expBulletPageMap, expGroupPageMap, expPageMap]);
   const page1CustomSections = useMemo(() => (
     (data?.customSections || [])
       .map((section) => (
@@ -360,6 +474,14 @@ export default function EditorPage({
     certifications: certsForPage(1),
     customSections: page1CustomSections,
   }), [certsForPage, data, educationForPage, page1CustomSections, page1Experience, skillsForPage]);
+  const page1SectionOrder = useMemo(
+    () => sectionOrder.filter((id) => (sectionLayout[id]?.page || 1) === 1),
+    [sectionOrder, sectionLayout]
+  );
+  const page1SidebarOrder = useMemo(
+    () => sidebarOrder.filter((id) => (sectionLayout[id]?.page || 1) === 1),
+    [sidebarOrder, sectionLayout]
+  );
 
   useEffect(() => {
     setExpGroupPageMap((prev) => Object.fromEntries(
@@ -401,6 +523,20 @@ export default function EditorPage({
       return { ...prev, [n]: 'same-as-primary' };
     });
   }, [extraPages, setExtraPages, setPageLayoutModes]);
+
+  const ensurePageSupportsColumn = useCallback((pageNum, column) => {
+    ensurePage(pageNum);
+    if (column === 'side') {
+      setPageLayoutModes((prev) => {
+        if ((prev[pageNum] || 'same-as-primary') === 'same-as-primary') return prev;
+        return { ...prev, [pageNum]: 'same-as-primary' };
+      });
+      setPageSidebarVisible((prev) => {
+        if (prev[pageNum] !== false) return prev;
+        return { ...prev, [pageNum]: true };
+      });
+    }
+  }, [ensurePage, setPageLayoutModes, setPageSidebarVisible]);
 
   // ── Column-aware auto-pagination: measure each column independently, cascade across pages ──
   const lastPagSigRef = useRef('');
@@ -494,38 +630,24 @@ export default function EditorPage({
           return false;
         };
 
-        const moveSplitItemForSection = (secId, fromPage, targetPage) => {
-          if (secId === 'skills') {
-            const visible = (data?.skills || []).map((_, index) => index).filter((index) => ((skillsPageMap[String(index)] || 1) === fromPage));
-            if (visible.length <= 1) return false;
-            setSkillsPageMap((prev) => ({ ...prev, [String(visible[visible.length - 1])]: targetPage }));
-            ensurePage(targetPage);
-            return true;
-          }
-          if (secId === 'education') {
-            const visible = (data?.education || []).map((_, index) => index).filter((index) => ((educationPageMap[String(index)] || 1) === fromPage));
-            if (visible.length <= 1) return false;
-            setEducationPageMap((prev) => ({ ...prev, [String(visible[visible.length - 1])]: targetPage }));
-            ensurePage(targetPage);
-            return true;
-          }
-          if (secId === 'certifications') {
-            const visible = (data?.certifications || []).map((_, index) => index).filter((index) => ((certPageMap[String(index)] || 1) === fromPage));
-            if (visible.length <= 1) return false;
-            setCertPageMap((prev) => ({ ...prev, [String(visible[visible.length - 1])]: targetPage }));
-            ensurePage(targetPage);
-            return true;
-          }
-          if (typeof secId === 'string' && secId.startsWith('cs_')) {
-            const section = (data?.customSections || []).find((entry) => `cs_${entry.id}` === secId);
-            if (!section || isStructuredProjectSection(section)) return false;
-            const visible = (section.items || []).map((_, index) => index).filter((index) => ((customItemPageMap[`${section.id}:${index}`] || 1) === fromPage));
-            if (visible.length <= 1) return false;
-            setCustomItemPageMap((prev) => ({ ...prev, [`${section.id}:${visible[visible.length - 1]}`]: targetPage }));
-            ensurePage(targetPage);
-            return true;
-          }
-          return false;
+        const moveTrailingSectionAfter = (pageNum, column, anchorSectionId) => {
+          const orderedIds = (pageNum === 1
+            ? (column === 'side' ? [...sidebarOrder] : [...sectionOrder])
+            : Object.entries(sectionLayout)
+                .filter(([, v]) => v.page === pageNum && (v.column || 'main') === column)
+                .sort((a, b) => a[1].order - b[1].order)
+                .map(([id]) => id)
+          );
+          const anchorIndex = orderedIds.indexOf(anchorSectionId);
+          if (anchorIndex === -1) return false;
+          const trailing = orderedIds.slice(anchorIndex + 1);
+          if (!trailing.length) return false;
+          const targetId = trailing[trailing.length - 1];
+          if (pageNum === 1) moveSectionFromPage1(targetId, 2);
+          else moveSectionToNextPage(targetId, pageNum);
+          lastDroppedSectionRef.current = null;
+          lastDropMetaRef.current = null;
+          return true;
         };
 
         // ── PAGE 1 overflow ──
@@ -552,6 +674,14 @@ export default function EditorPage({
             col.style.overflow = origOverflow;
             return h;
           };
+          const measureContentBottom = (col) => {
+            if (!col) return 0;
+            const style = window.getComputedStyle(col);
+            const paddingBottom = parseFloat(style.paddingBottom || '0') || 0;
+            return Array.from(col.children).reduce((max, child) => {
+              return Math.max(max, child.offsetTop + child.offsetHeight);
+            }, 0) + paddingBottom;
+          };
           const getAvailable = (col) => {
             if (!col) return A4H;
             let top = 0, el = col;
@@ -559,7 +689,9 @@ export default function EditorPage({
             return A4H - top;
           };
           mainOverflows = measureNatural(mainCol) > getAvailable(mainCol) + 5;
-          sideOverflows = measureNatural(sideCol) > getAvailable(sideCol) + 5;
+          sideOverflows =
+            measureNatural(sideCol) > getAvailable(sideCol) + 5 ||
+            measureContentBottom(sideCol) > (sideCol?.clientHeight || 0) + 5;
         } else {
           page1.style.overflow = 'hidden';
           const contentH = page1.scrollHeight;
@@ -568,18 +700,13 @@ export default function EditorPage({
         }
 
         if (mainOverflows) {
+          if (moveTrailingSectionAfter(1, 'main', 'experience')) {
+            return;
+          }
           if (sectionOrder[0] === 'summary' && sectionOrder.includes('experience') && moveLastExperienceContentToPage(1, 2)) {
             lastDroppedSectionRef.current = null;
             lastDropMetaRef.current = null;
             return;
-          }
-          const splitMainCandidates = [...sectionOrder].reverse().filter((secId) => secId !== 'experience');
-          for (const secId of splitMainCandidates) {
-            if (moveSplitItemForSection(secId, 1, 2)) {
-              lastDroppedSectionRef.current = null;
-              lastDropMetaRef.current = null;
-              return;
-            }
           }
           const droppedMainSection = lastDroppedSectionRef.current;
           const protectedPage1MainSection =
@@ -631,14 +758,6 @@ export default function EditorPage({
         }
 
         if (sideOverflows && isTwoCol) {
-          const splitSideCandidates = [...sidebarOrder].reverse();
-          for (const secId of splitSideCandidates) {
-            if (moveSplitItemForSection(secId, 1, 2)) {
-              lastDroppedSectionRef.current = null;
-              lastDropMetaRef.current = null;
-              return;
-            }
-          }
           const droppedSideSection = lastDroppedSectionRef.current;
           const protectedPage1SideSection =
             lastDropMetaRef.current?.toPage === 1 &&
@@ -682,6 +801,24 @@ export default function EditorPage({
           if (!pageEl) continue;
           const nextPage = pageNum + 1;
           const layoutMode = pageLayoutModes[pageNum] || 'same-as-primary';
+          const pageExperience = materializeExperienceForPage(pageNum);
+          const hasExperienceContinuation =
+            pageExperience.length > 0 && (sectionLayout.experience?.page || 1) < pageNum;
+          const shouldReservePageForExperience =
+            hasExperienceContinuation && lastExperienceContentPage > pageNum;
+
+          if (shouldReservePageForExperience) {
+            const pageMainSecs = Object.entries(sectionLayout)
+              .filter(([, v]) => v.page === pageNum && (v.column || 'main') === 'main')
+              .sort((a, b) => a[1].order - b[1].order);
+
+            if (pageMainSecs.length > 0) {
+              moveSectionToNextPage(pageMainSecs[pageMainSecs.length - 1][0], pageNum);
+              lastDroppedSectionRef.current = null;
+              lastDropMetaRef.current = null;
+              return;
+            }
+          }
 
           if (isTwoCol && layoutMode === 'same-as-primary') {
             const mainCol = document.getElementById(`page-${pageNum}-main`);
@@ -703,6 +840,14 @@ export default function EditorPage({
               col.style.overflow = origOverflow;
               return h;
             };
+            const measureContentBottom = (col) => {
+              if (!col) return 0;
+              const style = window.getComputedStyle(col);
+              const paddingBottom = parseFloat(style.paddingBottom || '0') || 0;
+              return Array.from(col.children).reduce((max, child) => {
+                return Math.max(max, child.offsetTop + child.offsetHeight);
+              }, 0) + paddingBottom;
+            };
             const getAvailable = (col) => {
               if (!col) return A4H;
               let top = 0, el = col;
@@ -711,29 +856,22 @@ export default function EditorPage({
             };
 
             const mainOverflow = measureNatural(mainCol) > getAvailable(mainCol) + 5;
-            const sideOverflow = measureNatural(sideCol) > getAvailable(sideCol) + 5;
+            const sideOverflow =
+              measureNatural(sideCol) > getAvailable(sideCol) + 5 ||
+              measureContentBottom(sideCol) > (sideCol?.clientHeight || 0) + 5;
             if (!mainOverflow && !sideOverflow) continue;
 
             if (mainOverflow) {
+              if (moveTrailingSectionAfter(pageNum, 'main', 'experience')) {
+                return;
+              }
               if (moveLastExperienceContentToPage(pageNum, nextPage)) {
                 lastDroppedSectionRef.current = null;
                 lastDropMetaRef.current = null;
                 return;
               }
-              const splitMainCandidates = Object.entries(sectionLayout)
-                .filter(([id, v]) => v.page <= pageNum && (v.column || 'main') === 'main')
-                .sort((a, b) => a[1].order - b[1].order)
-                .map(([id]) => id)
-                .reverse();
-              for (const secId of splitMainCandidates) {
-                if (moveSplitItemForSection(secId, pageNum, nextPage)) {
-                  lastDroppedSectionRef.current = null;
-                  lastDropMetaRef.current = null;
-                  return;
-                }
-              }
               const pageMainSecs = Object.entries(sectionLayout)
-                .filter(([_, v]) => v.page === pageNum && (v.column || 'main') === 'main')
+                .filter(([, v]) => v.page === pageNum && (v.column || 'main') === 'main')
                 .sort((a, b) => a[1].order - b[1].order);
               const droppedSectionId = lastDroppedSectionRef.current;
               if (
@@ -768,20 +906,8 @@ export default function EditorPage({
             }
 
             if (sideOverflow) {
-              const splitSideCandidates = Object.entries(sectionLayout)
-                .filter(([id, v]) => v.page <= pageNum && v.column === 'side')
-                .sort((a, b) => a[1].order - b[1].order)
-                .map(([id]) => id)
-                .reverse();
-              for (const secId of splitSideCandidates) {
-                if (moveSplitItemForSection(secId, pageNum, nextPage)) {
-                  lastDroppedSectionRef.current = null;
-                  lastDropMetaRef.current = null;
-                  return;
-                }
-              }
               const pageSideSecs = Object.entries(sectionLayout)
-                .filter(([_, v]) => v.page === pageNum && v.column === 'side')
+                .filter(([, v]) => v.page === pageNum && v.column === 'side')
                 .sort((a, b) => a[1].order - b[1].order)
                 .map(([id]) => id);
               const droppedSectionId = lastDroppedSectionRef.current;
@@ -836,22 +962,13 @@ export default function EditorPage({
 
           // This page overflows — move last item to next page
           const droppedSectionId = lastDroppedSectionRef.current;
+          if (moveTrailingSectionAfter(pageNum, 'main', 'experience')) {
+            return;
+          }
           if (moveLastExperienceContentToPage(pageNum, nextPage)) {
             lastDroppedSectionRef.current = null;
             lastDropMetaRef.current = null;
             return;
-          }
-          const splitCandidates = Object.entries(sectionLayout)
-            .filter(([id, v]) => v.page <= pageNum && (v.column || 'main') === 'main')
-            .sort((a, b) => a[1].order - b[1].order)
-            .map(([id]) => id)
-            .reverse();
-          for (const secId of splitCandidates) {
-            if (moveSplitItemForSection(secId, pageNum, nextPage)) {
-              lastDroppedSectionRef.current = null;
-              lastDropMetaRef.current = null;
-              return;
-            }
           }
 
           // Move experience items from this page bottom-up
@@ -866,7 +983,7 @@ export default function EditorPage({
 
           // Move last section from this page to next
           const pageSecs = Object.entries(sectionLayout)
-            .filter(([_, v]) => v.page === pageNum)
+            .filter(([, v]) => v.page === pageNum)
             .sort((a, b) => a[1].order - b[1].order);
           if (
             droppedSectionId &&
@@ -897,16 +1014,14 @@ export default function EditorPage({
       cancelAnimationFrame(raf2);
       clearTimeout(paginationRetryTimerRef.current);
     };
-  }, [data, expPageMap, expGroupPageMap, expBulletPageMap, skillsPageMap, educationPageMap, certPageMap, customItemPageMap, extraPages, sectionOrder, sidebarOrder, sectionLayout, template, ensurePage, paginationTick, materializeExperienceForPage]);
+  }, [data, expPageMap, expGroupPageMap, expBulletPageMap, skillsPageMap, educationPageMap, certPageMap, customItemPageMap, extraPages, sectionOrder, sidebarOrder, sectionLayout, template, ensurePage, paginationTick, materializeExperienceForPage, pageLayoutModes, setSectionLayout, setSectionOrder, setSidebarOrder]);
 
   // ── Sync custom section IDs into sectionOrder / sidebarOrder ──
   // Custom sections use `cs_{id}` as drag IDs so they participate in SortableContext
-  const customSections = data?.customSections || [];
-
   useEffect(() => {
     // Exclude cs_ IDs that are currently on pages 2+ (tracked in sectionLayout)
     const onLaterPages = new Set(
-      Object.entries(sectionLayout).filter(([_, v]) => v.page >= 2).map(([id]) => id)
+      Object.entries(sectionLayout).filter(([, v]) => v.page >= 2).map(([id]) => id)
     );
     const csMainIds = customSections
       .filter(s => (s.placement || 'main') === 'main')
@@ -946,7 +1061,7 @@ export default function EditorPage({
         }
       }
     });
-  }, [customSections, sectionLayout]);
+  }, [customSections, sectionLayout, setSectionLayout, setSectionOrder, setSidebarOrder]);
 
   // Helper to find a custom section by its drag ID (cs_xxx)
   const findCustomSection = useCallback((dragId) => {
@@ -1144,7 +1259,11 @@ export default function EditorPage({
 
     // ── Cross-column within same page N (N >= 2) ──
     if (activeParsed.page >= 2 && activeParsed.column !== overParsed.column) {
-      const newCol = overParsed.column;
+      const lockedColumn = getLockedColumn(template, active.id);
+      if (lockedColumn && lockedColumn !== overParsed.column) {
+        return;
+      }
+      const newCol = lockedColumn || overParsed.column;
       setSectionLayout(prev => ({
         ...prev,
         [active.id]: { ...prev[active.id], column: newCol },
@@ -1161,9 +1280,10 @@ export default function EditorPage({
         (overContainer === 'main' || overContainer === 'side') &&
         activeContainer !== overContainer) {
       const isTwoCol = (TEMPLATE_LAYOUTS[template]?.columns || 1) === 2;
+      const lockedColumn = getLockedColumn(template, active.id);
 
-      // Block main-only sections from being dragged to sidebar in 2-column templates
-      if (isTwoCol && activeContainer === 'main' && overContainer === 'side' && MAIN_ONLY_SECTIONS.includes(active.id)) {
+      // Block sections that are locked to a specific column in 2-column templates
+      if (isTwoCol && lockedColumn && lockedColumn !== overContainer) {
         return;
       }
 
@@ -1223,6 +1343,61 @@ export default function EditorPage({
     });
   }, [isContainerId, setSectionLayout]);
 
+  const moveVisibleExperienceContentToPage = useCallback((expId, fromPage, targetPage) => {
+    const basePage = expPageMap[expId] || 1;
+
+    if (basePage === fromPage) {
+      if (targetPage === 1) {
+        setExpPageMap((prev) => {
+          const next = { ...prev };
+          delete next[expId];
+          return next;
+        });
+      } else {
+        setExpPageMap((prev) => ({ ...prev, [expId]: targetPage }));
+      }
+    }
+
+    const exp = (data?.experience || []).find((entry) => entry._id === expId);
+    if (exp) {
+      setExpGroupPageMap((prev) => {
+        let changed = false;
+        const next = { ...prev };
+
+        (exp.sections || []).forEach((_, index) => {
+          const key = `${expId}:group:${index}`;
+          const currentPage = prev[key] || basePage;
+          if (currentPage !== fromPage) return;
+          changed = true;
+          if (targetPage === (expPageMap[expId] || targetPage)) delete next[key];
+          else next[key] = targetPage;
+        });
+
+        return changed ? next : prev;
+      });
+
+      setExpBulletPageMap((prev) => {
+        let changed = false;
+        const next = { ...prev };
+
+        (exp.bullets || []).forEach((_, index) => {
+          const key = `${expId}:bullet:${index}`;
+          const currentPage = prev[key] || basePage;
+          if (currentPage !== fromPage) return;
+          changed = true;
+          if (targetPage === (expPageMap[expId] || targetPage)) delete next[key];
+          else next[key] = targetPage;
+        });
+
+        return changed ? next : prev;
+      });
+    }
+
+    if (targetPage > 1) {
+      ensurePage(targetPage);
+    }
+  }, [data?.experience, ensurePage, expPageMap]);
+
   // ── handleDragEnd: all placement decisions happen here (on drop) ──
   // Cross-page moves, cross-column reorder, within-column reorder — all deterministic on drop.
   const handleDragEnd = useCallback((event) => {
@@ -1246,12 +1421,7 @@ export default function EditorPage({
       // Cross-page exp move (deferred from handleDragOver)
       if (activeParsed?.page !== overParsed?.page) {
         const expId = active.id.slice(4);
-        if (overParsed.page === 1) {
-          setExpPageMap(prev => { const next = { ...prev }; delete next[expId]; return next; });
-        } else {
-          setExpPageMap(prev => ({ ...prev, [expId]: overParsed.page }));
-          ensurePage(overParsed.page);
-        }
+        moveVisibleExperienceContentToPage(expId, activeParsed?.page || 1, overParsed?.page || 1);
         return;
       }
 
@@ -1313,14 +1483,14 @@ export default function EditorPage({
         lastDroppedSectionRef.current = active.id;
         lastDropMetaRef.current = { id: active.id, fromPage: activeParsed.page, toPage: overParsed.page };
         const sourceCol = activeContainer === 'side' ? 'side' : 'main';
-        const targetCol = overParsed.column || sourceCol;
+        const targetCol = getLockedColumn(template, active.id) || overParsed.column || sourceCol;
         const targetPage = overParsed.page;
         const insertAfter = !isOverContainer ? getInsertionOffset(event) === 1 : false;
         setSectionOrder(prev => prev.filter(id => id !== active.id));
         setSidebarOrder(prev => prev.filter(id => id !== active.id));
         placeSectionOnPage(active.id, targetPage, targetCol, isOverContainer ? null : resolvedOver, insertAfter);
         updateCSPlacement(targetCol);
-        ensurePage(targetPage);
+        ensurePageSupportsColumn(targetPage, targetCol);
         syncLayout(sectionOrder.filter(id => id !== active.id), sidebarOrder.filter(id => id !== active.id));
         return;
       }
@@ -1329,8 +1499,7 @@ export default function EditorPage({
       if (activeParsed.page >= 2 && overParsed.page === 1) {
         lastDroppedSectionRef.current = active.id;
         lastDropMetaRef.current = { id: active.id, fromPage: activeParsed.page, toPage: 1 };
-        const isTwoCol = (TEMPLATE_LAYOUTS[template]?.columns || 1) === 2;
-        const targetCol = (isTwoCol && MAIN_ONLY_SECTIONS.includes(active.id) && overParsed.column === 'side') ? 'main' : overParsed.column;
+        const targetCol = getLockedColumn(template, active.id) || overParsed.column || activeParsed.column || 'main';
         const offset = !isOverContainer ? getInsertionOffset(event) : 0;
         const insertInto = (arr) => {
           const cleaned = arr.filter(id => id !== active.id);
@@ -1362,11 +1531,11 @@ export default function EditorPage({
       if (activeParsed.page >= 2 && overParsed.page >= 2) {
         lastDroppedSectionRef.current = active.id;
         lastDropMetaRef.current = { id: active.id, fromPage: activeParsed.page, toPage: overParsed.page };
-        const targetCol = overParsed.column || activeParsed.column || 'main';
+        const targetCol = getLockedColumn(template, active.id) || overParsed.column || activeParsed.column || 'main';
         const insertAfter = !isOverContainer ? getInsertionOffset(event) === 1 : false;
         placeSectionOnPage(active.id, overParsed.page, targetCol, isOverContainer ? null : resolvedOver, insertAfter);
         updateCSPlacement(targetCol);
-        ensurePage(overParsed.page);
+        ensurePageSupportsColumn(overParsed.page, targetCol);
         syncLayout(sectionOrder, sidebarOrder);
         return;
       }
@@ -1394,7 +1563,7 @@ export default function EditorPage({
 
         setSectionLayout(prev => {
           const pageItems = Object.entries(prev)
-            .filter(([_, v]) => v.page === pageNum && v.column === col)
+            .filter(([, v]) => v.page === pageNum && v.column === col)
             .sort((a, b) => a[1].order - b[1].order)
             .map(([id]) => id);
 
@@ -1451,7 +1620,7 @@ export default function EditorPage({
       lastDropMetaRef.current = { id: active.id, fromPage: 1, toPage: 1 };
       syncLayout(sectionOrder, sidebarOrder);
     }
-  }, [findContainer, parseContainer, resolveOverForSection, resolveDropTargetFromPoint, isContainerId, setSectionOrder, setSidebarOrder, setSectionLayout, syncLayout, sectionOrder, sidebarOrder, data, onEdit, expPageMap, ensurePage, template, getInsertionOffset, placeSectionOnPage]);
+  }, [findContainer, parseContainer, resolveOverForSection, resolveDropTargetFromPoint, isContainerId, setSectionOrder, setSidebarOrder, setSectionLayout, syncLayout, sectionOrder, sidebarOrder, data, onEdit, ensurePage, ensurePageSupportsColumn, template, getInsertionOffset, placeSectionOnPage]);
 
   const handleDragCancel = useCallback(() => {
     setActiveDragId(null);
@@ -1534,6 +1703,7 @@ export default function EditorPage({
   const pageBgColor = colors.background || defaults?.background || '#ffffff';
   const keywordPreview = atsReport?.matchedKeywords?.slice(0, 6) || [];
   const missingKeywordPreview = atsReport?.missingKeywords?.slice(0, 6) || [];
+  const focusAreaPreview = atsReport?.focusAreas?.slice(0, 2) || [];
 
   // Shared heading style for page-2 sections (template-aware)
   const isCommentHeading = tplLayout.headingStyle === 'comment';
@@ -1547,10 +1717,11 @@ export default function EditorPage({
         letterSpacing: tplLayout.p2HeadingLetterSpacing || '0.08em',
         marginBottom: 3,
         paddingBottom: 1,
-        borderBottom: `2px solid ${tplLayout.p2HeadingRuleColor || accentColor}`,
+        borderBottom: `${tplLayout.p2HeadingRuleWidth || 2}px solid ${tplLayout.p2HeadingRuleColor || accentColor}`,
       };
-  const p2SectionGap = tplLayout.page2SectionGap || 'var(--space-lg)';
+  const p2SectionGap = tplLayout.page2SectionGap ?? 'var(--space-lg)';
   const p2SectionLift = template === 'executive-navy' ? -10 : (template === 'bold-coral' ? -6 : (template === 'designer-slate' ? -10 : 0));
+  const isDesignerSlateContinuation = template === 'designer-slate';
 
   // Default display names for built-in sections (templates may override these)
   const BUILTIN_LABELS = { summary: 'Profile', experience: 'Experience', skills: 'Skills', education: 'Education', certifications: 'Certifications' };
@@ -1569,11 +1740,123 @@ export default function EditorPage({
     return <EditableText value={label(sectionId)} onChange={v => onEdit('section_rename', { sectionId, v })} tag="h2" style={p2Heading} />;
   };
 
+  const renderDesignerSlateMainContinuationShell = (sectionId, children) => (
+    <section style={{ marginBottom: p2SectionGap, padding: '0 6px 0', marginLeft: -6, marginRight: -6 }}>
+      <EditableText
+        value={label(sectionId)}
+        onChange={v => onEdit('section_rename', { sectionId, v })}
+        tag="h2"
+        style={{
+          margin: 0,
+          color: headColor,
+          fontFamily: "'Outfit',sans-serif",
+          fontSize: 22,
+          fontWeight: 800,
+          letterSpacing: '0.1em',
+          textTransform: 'capitalize',
+        }}
+      />
+      <div style={{ height: 1, background: 'rgba(61, 68, 86, .55)', margin: '3px 0 3px' }} />
+      {children}
+    </section>
+  );
+
+  const renderDesignerSlateSidebarContinuationShell = (sectionId, children, compact = false) => (
+    <section
+      style={{
+        marginBottom: p2SidebarSectionGap,
+        padding: compact ? '0 5px 2px' : '0 8px 5px',
+        marginLeft: compact ? -5 : -8,
+        marginRight: compact ? -5 : -8,
+      }}
+    >
+      <EditableText
+        value={label(sectionId)}
+        onChange={v => onEdit('section_rename', { sectionId, v })}
+        tag="h2"
+        style={{
+          color: '#f5f7fb',
+          fontFamily: "'Outfit',sans-serif",
+          fontSize: compact ? 16 : 18,
+          fontWeight: 800,
+          letterSpacing: '0.1em',
+          textTransform: 'capitalize',
+          margin: compact ? '-1px 0 0 0' : 0,
+        }}
+      />
+      <div style={{ height: 1, background: 'rgba(255,255,255,.7)', margin: compact ? '3px 0 4px' : '5px 0 6px' }} />
+      {children}
+    </section>
+  );
+
+  const renderDesignerSlateContinuationShell = ({
+    titleValue,
+    onTitleChange,
+    children,
+    sidebar = false,
+    compact = false,
+  }) => (
+    sidebar ? (
+      <section
+        style={{
+          marginBottom: p2SidebarSectionGap,
+          padding: compact ? '0 5px 2px' : '0 8px 5px',
+          marginLeft: compact ? -5 : -8,
+          marginRight: compact ? -5 : -8,
+        }}
+      >
+        <EditableText
+          value={titleValue}
+          onChange={onTitleChange}
+          tag="h2"
+          style={{
+            color: '#f5f7fb',
+            fontFamily: "'Outfit',sans-serif",
+            fontSize: compact ? 16 : 18,
+            fontWeight: 800,
+            letterSpacing: '0.1em',
+            textTransform: 'capitalize',
+            margin: compact ? '-1px 0 0 0' : 0,
+          }}
+        />
+        <div style={{ height: 1, background: 'rgba(255,255,255,.7)', margin: compact ? '3px 0 4px' : '5px 0 6px' }} />
+        {children}
+      </section>
+    ) : (
+      <section style={{ marginBottom: p2SectionGap, padding: '0 6px 0', marginLeft: -6, marginRight: -6 }}>
+        <EditableText
+          value={titleValue}
+          onChange={onTitleChange}
+          tag="h2"
+          style={{
+            margin: 0,
+            color: headColor,
+            fontFamily: "'Outfit',sans-serif",
+            fontSize: 22,
+            fontWeight: 800,
+            letterSpacing: '0.1em',
+            textTransform: 'capitalize',
+          }}
+        />
+        <div style={{ height: 1, background: 'rgba(61, 68, 86, .55)', margin: '3px 0 3px' }} />
+        {children}
+      </section>
+    )
+  );
+
   function renderPage2Section(sectionId) {
     if (sectionId === 'summary') {
       return (
         <DraggableSection key="summary" id="summary">
-          <section style={{ marginBottom: p2SectionGap }}>
+          {isDesignerSlateContinuation ? renderDesignerSlateMainContinuationShell('summary', (
+            <EditableText
+              value={data?.summary}
+              onChange={v => onEdit('summary', { v })}
+              tag="p"
+              multiline
+              style={{ fontSize: baseFontSize, lineHeight: 1.85, color: bodyColor }}
+            />
+          )) : <section style={{ marginBottom: p2SectionGap }}>
             <P2SectionHeading sectionId="summary" />
             <EditableText
               value={data?.summary}
@@ -1582,14 +1865,37 @@ export default function EditorPage({
               multiline
               style={{ fontSize: baseFontSize, lineHeight: 1.85, color: bodyColor }}
             />
-          </section>
+          </section>}
         </DraggableSection>
       );
     }
     if (sectionId === 'experience') {
       return (
-        <DraggableSection key="experience" id="experience">
-          <section style={{ marginTop: p2SectionLift, marginBottom: p2SectionGap }}>
+        <DraggableSection key="experience" id="experience" style={p2SectionLift ? { marginTop: p2SectionLift } : undefined}>
+          {isDesignerSlateContinuation ? renderDesignerSlateMainContinuationShell('experience', (
+            <>
+            <SortableContext items={expItemIds} strategy={verticalListSortingStrategy}>
+              {data?.experience?.map((exp, i) => (
+                <DraggableSection key={exp._id} id={`exp-${exp._id}`}>
+                  <div style={tplLayout.expBorderLeft ? { paddingLeft: 14, borderLeft: `2px solid ${accentColor}30` } : (template === 'executive-navy' ? { borderLeft: `2px solid ${accentColor}`, paddingLeft: 6, marginTop: i === 0 ? -24 : -12 } : (template === 'bold-coral' ? { marginTop: i === 0 ? -8 : -4 } : (template === 'designer-slate' ? { marginTop: i === 0 ? -8 : -3 } : undefined)))}>
+                    <ExpBlock
+                      exp={exp}
+                      idx={i}
+                      onEdit={onEdit}
+                      headingColor={headColor}
+                      bodyColor={bodyColor}
+                      accentColor={accentColor}
+                      bulletChar={tplLayout.bulletChar}
+                    />
+                  </div>
+                </DraggableSection>
+              ))}
+            </SortableContext>
+            <div style={template === 'executive-navy' ? { marginTop: -8 } : (template === 'bold-coral' ? { marginTop: -7 } : (template === 'designer-slate' ? { marginTop: -7 } : undefined))}>
+              <AddButton onClick={() => onEdit('exp_add', {})} label="experience" />
+            </div>
+            </>
+          )) : <section style={{ marginBottom: p2SectionGap }}>
             <P2SectionHeading sectionId="experience" />
             <SortableContext items={expItemIds} strategy={verticalListSortingStrategy}>
               {data?.experience?.map((exp, i) => (
@@ -1608,52 +1914,72 @@ export default function EditorPage({
                 </DraggableSection>
               ))}
             </SortableContext>
-            <div style={template === 'executive-navy' ? { marginTop: -4 } : (template === 'bold-coral' ? { marginTop: -3 } : (template === 'designer-slate' ? { marginTop: -3 } : undefined))}>
+            <div style={template === 'executive-navy' ? { marginTop: -8 } : (template === 'bold-coral' ? { marginTop: -7 } : (template === 'designer-slate' ? { marginTop: -7 } : undefined))}>
               <AddButton onClick={() => onEdit('exp_add', {})} label="experience" />
             </div>
-          </section>
+          </section>}
         </DraggableSection>
       );
     }
     if (sectionId === 'skills') {
       return (
-        <DraggableSection key="skills" id="skills">
-          <section style={{ marginTop: p2SectionLift, marginBottom: p2SectionGap }}>
+        <DraggableSection key="skills" id="skills" style={p2SectionLift ? { marginTop: p2SectionLift } : undefined}>
+          {isDesignerSlateContinuation ? renderDesignerSlateMainContinuationShell('skills', (
+            <SkillsRenderer skills={data?.skills} onEdit={onEdit} variant={skillStyle} accentColor={accentColor} textColor={isCommentHeading ? accentColor : headColor} fontSize={baseFontSize} fontFamily={fontFamily} />
+          )) : <section style={{ marginBottom: p2SectionGap }}>
             <P2SectionHeading sectionId="skills" />
             <SkillsRenderer skills={data?.skills} onEdit={onEdit} variant={skillStyle} accentColor={accentColor} textColor={isCommentHeading ? accentColor : headColor} fontSize={baseFontSize} fontFamily={fontFamily} />
-          </section>
+          </section>}
         </DraggableSection>
       );
     }
     if (sectionId === 'education') {
       return (
-        <DraggableSection key="education" id="education">
-          <section style={{ marginTop: p2SectionLift, marginBottom: p2SectionGap }}>
+        <DraggableSection key="education" id="education" style={p2SectionLift ? { marginTop: p2SectionLift } : undefined}>
+          {isDesignerSlateContinuation ? renderDesignerSlateMainContinuationShell('education', (
+            <EducationRenderer education={data?.education} onEdit={onEdit} variant={educationStyle} accentColor={accentColor} headingColor={headColor} textColor={bodyColor} fontSize={baseFontSize} fontFamily={fontFamily} />
+          )) : <section style={{ marginBottom: p2SectionGap }}>
             <P2SectionHeading sectionId="education" />
             <EducationRenderer education={data?.education} onEdit={onEdit} variant={educationStyle} accentColor={accentColor} headingColor={headColor} textColor={bodyColor} fontSize={baseFontSize} fontFamily={fontFamily} />
-          </section>
+          </section>}
         </DraggableSection>
       );
     }
     if (sectionId === 'certifications') {
       if (!data?.certifications?.length) return null;
       return (
-        <DraggableSection key="certifications" id="certifications">
-          <section style={{ marginTop: p2SectionLift, marginBottom: p2SectionGap }}>
+        <DraggableSection key="certifications" id="certifications" style={p2SectionLift ? { marginTop: p2SectionLift } : undefined}>
+          {isDesignerSlateContinuation ? renderDesignerSlateMainContinuationShell('certifications', (
+            <CertificationsRenderer certifications={data?.certifications} onEdit={onEdit} variant={certificationStyle} accentColor={accentColor} textColor={bodyColor} fontSize={baseFontSize} fontFamily={fontFamily} />
+          )) : <section style={{ marginBottom: p2SectionGap }}>
             <P2SectionHeading sectionId="certifications" />
             <CertificationsRenderer certifications={data?.certifications} onEdit={onEdit} variant={certificationStyle} accentColor={accentColor} textColor={bodyColor} fontSize={baseFontSize} fontFamily={fontFamily} />
-          </section>
+          </section>}
         </DraggableSection>
       );
     }
     // Custom sections on page 2 main
     const csSec = findCustomSection(sectionId);
     if (csSec) {
+      const visibleEntries = customSectionEntriesForPage(csSec, 1);
       return (
-        <DraggableSection key={sectionId} id={sectionId}>
-          <div style={p2SectionLift ? { marginTop: p2SectionLift } : undefined}>
+        <DraggableSection key={sectionId} id={sectionId} style={p2SectionLift ? { marginTop: p2SectionLift } : undefined}>
+          {isDesignerSlateContinuation ? renderDesignerSlateContinuationShell({
+            titleValue: csSec.title,
+            onTitleChange: (v) => onEdit('custom_section_rename', { id: csSec.id, v }),
+            children: (
+              <EditableText
+                value={bulletBlockValue(visibleEntries.map(({ item }) => item), '•')}
+                onChange={(v) => replaceCustomSectionPageItems(csSec, visibleEntries, v)}
+                tag="div"
+                multiline
+                bulletBlock
+                style={{ fontSize: baseFontSize, lineHeight: 1.6, color: bodyColor, whiteSpace: 'pre-line' }}
+              />
+            ),
+          }) : <div>
             <MainSection section={csSec} onEdit={onEdit} headingColor={headColor} bodyColor={bodyColor} accentColor={accentColor} />
-          </div>
+          </div>}
         </DraggableSection>
       );
     }
@@ -1672,7 +1998,7 @@ export default function EditorPage({
     color: tplLayout.p2SidebarHeadingColor || accentColor,
   };
   const p2SidebarText = tplLayout.sidebarColor || bodyColor;
-  const p2SidebarSectionGap = tplLayout.page2SidebarSectionGap || 14;
+  const p2SidebarSectionGap = tplLayout.page2SidebarSectionGap ?? 14;
   const continuationSidebarBg =
     tplLayout.sidebarBg && tplLayout.sidebarBg !== 'transparent'
       ? (colors?.sidebar || tplLayout.sidebarBg)
@@ -1682,20 +2008,24 @@ export default function EditorPage({
     if (sectionId === 'skills') {
       return (
         <DraggableSection key="skills" id="skills">
-          <section style={{ marginBottom: p2SidebarSectionGap }}>
+          {isDesignerSlateContinuation ? renderDesignerSlateSidebarContinuationShell('skills', (
+            <SkillsRenderer skills={data?.skills} onEdit={onEdit} variant={skillStyle} accentColor={accentColor} textColor={p2SidebarText} fontSize={baseFontSize} />
+          )) : <section style={{ marginBottom: p2SidebarSectionGap }}>
             <EditableText value={label('skills')} onChange={v => onEdit('section_rename', { sectionId: 'skills', v })} tag="h3" style={p2SidebarHeading} />
             <SkillsRenderer skills={data?.skills} onEdit={onEdit} variant={skillStyle} accentColor={accentColor} textColor={p2SidebarText} fontSize={baseFontSize} />
-          </section>
+          </section>}
         </DraggableSection>
       );
     }
     if (sectionId === 'education') {
       return (
         <DraggableSection key="education" id="education">
-          <section style={{ marginBottom: p2SidebarSectionGap }}>
+          {isDesignerSlateContinuation ? renderDesignerSlateSidebarContinuationShell('education', (
+            <EducationRenderer education={data?.education} onEdit={onEdit} variant={educationStyle} accentColor={accentColor} headingColor={p2SidebarText} textColor={p2SidebarText} fontSize={baseFontSize} />
+          ), true) : <section style={{ marginBottom: p2SidebarSectionGap }}>
             <EditableText value={label('education')} onChange={v => onEdit('section_rename', { sectionId: 'education', v })} tag="h3" style={p2SidebarHeading} />
             <EducationRenderer education={data?.education} onEdit={onEdit} variant={educationStyle} accentColor={accentColor} headingColor={p2SidebarText} textColor={p2SidebarText} fontSize={baseFontSize} />
-          </section>
+          </section>}
         </DraggableSection>
       );
     }
@@ -1703,10 +2033,12 @@ export default function EditorPage({
       if (!data?.certifications?.length) return null;
       return (
         <DraggableSection key="certifications" id="certifications">
-          <section style={{ marginBottom: p2SidebarSectionGap }}>
+          {isDesignerSlateContinuation ? renderDesignerSlateSidebarContinuationShell('certifications', (
+            <CertificationsRenderer certifications={data?.certifications} onEdit={onEdit} variant={certificationStyle} accentColor={accentColor} textColor={p2SidebarText} fontSize={baseFontSize - 1} />
+          ), true) : <section style={{ marginBottom: p2SidebarSectionGap }}>
             <EditableText value={label('certifications')} onChange={v => onEdit('section_rename', { sectionId: 'certifications', v })} tag="h3" style={p2SidebarHeading} />
             <CertificationsRenderer certifications={data?.certifications} onEdit={onEdit} variant={certificationStyle} accentColor={accentColor} textColor={p2SidebarText} fontSize={baseFontSize - 1} />
-          </section>
+          </section>}
         </DraggableSection>
       );
     }
@@ -1715,7 +2047,21 @@ export default function EditorPage({
     if (csSec) {
       return (
         <DraggableSection key={sectionId} id={sectionId}>
-          <SideSection section={csSec} onEdit={onEdit} textColor={p2SidebarText} accentColor={accentColor} />
+          {isDesignerSlateContinuation ? renderDesignerSlateContinuationShell({
+            titleValue: csSec.title,
+            onTitleChange: (v) => onEdit('custom_section_rename', { id: csSec.id, v }),
+            sidebar: true,
+            compact: true,
+            children: (
+            <div style={{ display: 'grid', gap: 6 }}>
+              {(csSec.items || []).map((item, index) => (
+                <div key={`${csSec.id}-page1-side-custom-${index}`} style={{ fontSize: baseFontSize, lineHeight: 1.6, color: p2SidebarText }}>
+                  {item}
+                </div>
+              ))}
+            </div>
+            ),
+          }) : <SideSection section={csSec} onEdit={onEdit} textColor={p2SidebarText} accentColor={accentColor} />}
         </DraggableSection>
       );
     }
@@ -1746,9 +2092,8 @@ export default function EditorPage({
     if (sectionId === 'skills') {
       const items = skillsForPage(pageNum);
       if (!items.length) return null;
-      return (
-        <section key={`${sectionId}-continuation-${pageNum}`} style={{ marginBottom: sidebar ? p2SidebarSectionGap : p2SectionGap }}>
-          <EditableText value={label('skills')} onChange={v => onEdit('section_rename', { sectionId: 'skills', v })} tag={sidebar ? 'h3' : 'h2'} style={sidebar ? p2SidebarHeading : p2Heading} />
+      const content = (
+        <>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: sidebar ? 6 : 8 }}>
             {items.map((item, index) => (
               <span key={`${sectionId}-${pageNum}-${index}`} style={{ fontSize: baseFontSize, lineHeight: 1.6, color: sidebar ? p2SidebarText : bodyColor }}>
@@ -1756,15 +2101,28 @@ export default function EditorPage({
               </span>
             ))}
           </div>
-        </section>
+        </>
       );
+      return isDesignerSlateContinuation
+        ? <section key={`${sectionId}-continuation-${pageNum}`}>{renderDesignerSlateContinuationShell({
+            titleValue: label('skills'),
+            onTitleChange: (v) => onEdit('section_rename', { sectionId: 'skills', v }),
+            children: content,
+            sidebar,
+            compact: true,
+          })}</section>
+        : (
+          <section key={`${sectionId}-continuation-${pageNum}`} style={{ marginBottom: sidebar ? p2SidebarSectionGap : p2SectionGap }}>
+            <EditableText value={label('skills')} onChange={v => onEdit('section_rename', { sectionId: 'skills', v })} tag={sidebar ? 'h3' : 'h2'} style={sidebar ? p2SidebarHeading : p2Heading} />
+            {content}
+          </section>
+        );
     }
     if (sectionId === 'education') {
       const items = educationForPage(pageNum);
       if (!items.length) return null;
-      return (
-        <section key={`${sectionId}-continuation-${pageNum}`} style={{ marginBottom: sidebar ? p2SidebarSectionGap : p2SectionGap }}>
-          <EditableText value={label('education')} onChange={v => onEdit('section_rename', { sectionId: 'education', v })} tag={sidebar ? 'h3' : 'h2'} style={sidebar ? p2SidebarHeading : p2Heading} />
+      const content = (
+        <>
           <div style={{ display: 'grid', gap: 8 }}>
             {items.map((item, index) => (
               <div key={`${sectionId}-${pageNum}-${index}`}>
@@ -1774,15 +2132,28 @@ export default function EditorPage({
               </div>
             ))}
           </div>
-        </section>
+        </>
       );
+      return isDesignerSlateContinuation
+        ? <section key={`${sectionId}-continuation-${pageNum}`}>{renderDesignerSlateContinuationShell({
+            titleValue: label('education'),
+            onTitleChange: (v) => onEdit('section_rename', { sectionId: 'education', v }),
+            children: content,
+            sidebar,
+            compact: true,
+          })}</section>
+        : (
+          <section key={`${sectionId}-continuation-${pageNum}`} style={{ marginBottom: sidebar ? p2SidebarSectionGap : p2SectionGap }}>
+            <EditableText value={label('education')} onChange={v => onEdit('section_rename', { sectionId: 'education', v })} tag={sidebar ? 'h3' : 'h2'} style={sidebar ? p2SidebarHeading : p2Heading} />
+            {content}
+          </section>
+        );
     }
     if (sectionId === 'certifications') {
       const items = certsForPage(pageNum);
       if (!items.length) return null;
-      return (
-        <section key={`${sectionId}-continuation-${pageNum}`} style={{ marginBottom: sidebar ? p2SidebarSectionGap : p2SectionGap }}>
-          <EditableText value={label('certifications')} onChange={v => onEdit('section_rename', { sectionId: 'certifications', v })} tag={sidebar ? 'h3' : 'h2'} style={sidebar ? p2SidebarHeading : p2Heading} />
+      const content = (
+        <>
           <div style={{ display: 'grid', gap: 4 }}>
             {items.map((item, index) => (
               <div key={`${sectionId}-${pageNum}-${index}`} style={{ fontSize: baseFontSize, lineHeight: 1.6, color: sidebar ? p2SidebarText : bodyColor }}>
@@ -1790,31 +2161,61 @@ export default function EditorPage({
               </div>
             ))}
           </div>
-        </section>
+        </>
       );
+      return isDesignerSlateContinuation
+        ? <section key={`${sectionId}-continuation-${pageNum}`}>{renderDesignerSlateContinuationShell({
+            titleValue: label('certifications'),
+            onTitleChange: (v) => onEdit('section_rename', { sectionId: 'certifications', v }),
+            children: content,
+            sidebar,
+            compact: true,
+          })}</section>
+        : (
+          <section key={`${sectionId}-continuation-${pageNum}`} style={{ marginBottom: sidebar ? p2SidebarSectionGap : p2SectionGap }}>
+            <EditableText value={label('certifications')} onChange={v => onEdit('section_rename', { sectionId: 'certifications', v })} tag={sidebar ? 'h3' : 'h2'} style={sidebar ? p2SidebarHeading : p2Heading} />
+            {content}
+          </section>
+        );
     }
 
     const section = findCustomSection(sectionId);
-    const items = customSectionItemsForPage(section, pageNum);
-    if (!section || !items.length) return null;
+    const visibleEntries = customSectionEntriesForPage(section, pageNum);
+    if (!section || !visibleEntries.length) return null;
 
-    return (
-      <section key={`${sectionId}-continuation-${pageNum}`} style={{ marginBottom: sidebar ? p2SidebarSectionGap : p2SectionGap }}>
-        <EditableText
-          value={section.title}
-          onChange={v => onEdit('custom_section_rename', { id: section.id, v })}
-          tag={sidebar ? 'h3' : 'h2'}
-          style={sidebar ? p2SidebarHeading : p2Heading}
-        />
-        <div style={{ display: 'grid', gap: 6 }}>
-          {items.map((item, index) => (
-            <div key={`${section.id}-${pageNum}-${index}`} style={{ fontSize: baseFontSize, lineHeight: 1.6, color: sidebar ? p2SidebarText : bodyColor }}>
-              {item}
-            </div>
-          ))}
-        </div>
-      </section>
+    const content = (
+      <EditableText
+        value={bulletBlockValue(visibleEntries.map(({ item }) => item), '•')}
+        onChange={(v) => replaceCustomSectionPageItems(section, visibleEntries, v)}
+        tag="div"
+        multiline
+        bulletBlock
+        style={{ fontSize: baseFontSize, lineHeight: 1.6, color: sidebar ? p2SidebarText : bodyColor, whiteSpace: 'pre-line' }}
+      />
     );
+
+    return isDesignerSlateContinuation
+      ? (
+        <section key={`${sectionId}-continuation-${pageNum}`}>
+          {renderDesignerSlateContinuationShell({
+            titleValue: section.title,
+            onTitleChange: (v) => onEdit('custom_section_rename', { id: section.id, v }),
+            children: content,
+            sidebar,
+            compact: true,
+          })}
+        </section>
+      ) : (
+        <section key={`${sectionId}-continuation-${pageNum}`} style={{ marginBottom: sidebar ? p2SidebarSectionGap : p2SectionGap }}>
+          <EditableText
+            value={section.title}
+            onChange={v => onEdit('custom_section_rename', { id: section.id, v })}
+            tag={sidebar ? 'h3' : 'h2'}
+            style={sidebar ? p2SidebarHeading : p2Heading}
+          />
+          {content}
+        </section>
+      );
   }
 
   function renderPageContent(pageNum) {
@@ -1834,6 +2235,9 @@ export default function EditorPage({
     const layoutMode = getPageLayoutMode(pageNum);
     const sidebarOn = isSidebarVisible(pageNum);
     const isDropTarget = dragOverPage === pageNum;
+    const continuationBodyPadding = tplLayout.page2BodyPadding ?? tplLayout.bodyPadding ?? 0;
+    const continuationMainPadding = tplLayout.page2MainPadding ?? tplLayout.mainPadding ?? '40px var(--space-xl)';
+    const continuationSidebarPadding = tplLayout.page2SidebarPadding ?? tplLayout.sidebarPadding ?? 'var(--space-xl) 20px';
 
     // Cross-page drop indicator — shows when dragging a section toward this page
     const crossPageIndicator = isDropTarget && (
@@ -1860,7 +2264,24 @@ export default function EditorPage({
         {/* Experience items (overflow from page 1) render first as continuation */}
         {showIndividualExp && (
           <section style={{ marginBottom: p2SectionGap }}>
-            {isCommentHeading ? (
+            {isDesignerSlateContinuation ? renderDesignerSlateContinuationShell({
+              titleValue: label('experience'),
+              onTitleChange: (v) => onEdit('section_rename', { sectionId: 'experience', v }),
+              children: (
+              <SortableContext items={pageExpItemIds} strategy={verticalListSortingStrategy}>
+                {pageExperience.map((exp) => {
+                  const globalIdx = data?.experience?.findIndex(e => e._id === exp._id);
+                  return (
+                    <DraggableSection key={exp._id} id={`exp-${exp._id}`}>
+                      <div style={tplLayout.expBorderLeft ? { paddingLeft: 14, borderLeft: `2px solid ${accentColor}30` } : undefined}>
+                        <ExpBlock exp={exp} idx={globalIdx} onEdit={onEdit} headingColor={headColor} bodyColor={bodyColor} accentColor={accentColor} bulletChar={tplLayout.bulletChar} />
+                      </div>
+                    </DraggableSection>
+                  );
+                })}
+              </SortableContext>
+              ),
+            }) : isCommentHeading ? (
               <p style={p2Heading}>
                 <span style={{ color: accentColor }}>{'//'}</span>{' '}
                 <EditableText value={label('experience')} onChange={v => onEdit('section_rename', { sectionId: 'experience', v })} tag="span" />
@@ -1868,18 +2289,20 @@ export default function EditorPage({
             ) : (
               <EditableText value={label('experience')} onChange={v => onEdit('section_rename', { sectionId: 'experience', v })} tag="h2" style={p2Heading} />
             )}
-            <SortableContext items={pageExpItemIds} strategy={verticalListSortingStrategy}>
-              {pageExperience.map((exp) => {
-                const globalIdx = data?.experience?.findIndex(e => e._id === exp._id);
-                return (
-                  <DraggableSection key={exp._id} id={`exp-${exp._id}`}>
-                    <div style={tplLayout.expBorderLeft ? { paddingLeft: 14, borderLeft: `2px solid ${accentColor}30` } : undefined}>
-                      <ExpBlock exp={exp} idx={globalIdx} onEdit={onEdit} headingColor={headColor} bodyColor={bodyColor} accentColor={accentColor} bulletChar={tplLayout.bulletChar} />
-                    </div>
-                  </DraggableSection>
-                );
-              })}
-            </SortableContext>
+            {!isDesignerSlateContinuation && (
+              <SortableContext items={pageExpItemIds} strategy={verticalListSortingStrategy}>
+                {pageExperience.map((exp) => {
+                  const globalIdx = data?.experience?.findIndex(e => e._id === exp._id);
+                  return (
+                    <DraggableSection key={exp._id} id={`exp-${exp._id}`}>
+                      <div style={tplLayout.expBorderLeft ? { paddingLeft: 14, borderLeft: `2px solid ${accentColor}30` } : undefined}>
+                        <ExpBlock exp={exp} idx={globalIdx} onEdit={onEdit} headingColor={headColor} bodyColor={bodyColor} accentColor={accentColor} bulletChar={tplLayout.bulletChar} />
+                      </div>
+                    </DraggableSection>
+                  );
+                })}
+              </SortableContext>
+            )}
           </section>
         )}
 
@@ -1911,8 +2334,8 @@ export default function EditorPage({
           background: pageBgColor,
           color: bodyColor,
           ...(layoutMode === 'same-as-primary' && tplLayout.columns === 2
-            ? { display: 'flex', flexDirection: 'row', alignItems: 'stretch', padding: tplLayout.bodyPadding || 0, gap: tplLayout.bodyGap || 0 }
-            : { padding: tplLayout.mainPadding || '40px 36px' }
+            ? { display: 'flex', flexDirection: 'row', alignItems: 'stretch', padding: continuationBodyPadding, gap: tplLayout.bodyGap || 0 }
+            : { padding: tplLayout.mainPadding || '40px 36px', paddingTop: tplLayout.page2MainPaddingTop ?? 10 }
           ),
         }}
       >
@@ -1929,14 +2352,17 @@ export default function EditorPage({
                   background: continuationSidebarBg,
                   borderRadius: tplLayout.sidebarRadius || 0,
                   color: tplLayout.sidebarColor || bodyColor,
-                  padding: tplLayout.sidebarPadding || 'var(--space-xl) 20px',
+                  padding: continuationSidebarPadding,
+                  paddingTop: tplLayout.page2SidebarPaddingTop ?? 10,
                   borderRight: tplLayout.sidebarBorder ? `3px solid ${accentColor}` : undefined,
                   alignSelf: 'stretch',
                   height: '100%',
                   minHeight: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }}
               >
-                {pageSidebarSections.length > 0 ? pageSidebarInner : (
+                {(pageSidebarSections.length > 0 || pageSidebarContinuations.length > 0) ? pageSidebarInner : (
                   <div style={{
                     height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: tplLayout.sidebarColor || 'var(--c-text-ghost)', fontSize: 11, opacity: 0.5,
@@ -1951,7 +2377,8 @@ export default function EditorPage({
               id={`page-${pageNum}-main`}
               style={{
                 flex: tplLayout.mainFlex || 1,
-                padding: tplLayout.mainPadding || '40px var(--space-xl)',
+                padding: continuationMainPadding,
+                paddingTop: tplLayout.page2MainPaddingTop ?? 10,
                 minWidth: 0,
               }}
             >
@@ -1980,14 +2407,17 @@ export default function EditorPage({
                   background: continuationSidebarBg,
                   borderRadius: tplLayout.sidebarRadius || 0,
                   color: tplLayout.sidebarColor || bodyColor,
-                  padding: tplLayout.sidebarPadding || (tplLayout.sidebarBg !== 'transparent' ? 'var(--space-xl) 18px' : 'var(--space-xl) 20px'),
+                  padding: continuationSidebarPadding,
+                  paddingTop: tplLayout.page2SidebarPaddingTop ?? 10,
                   borderLeft: tplLayout.sidebarBorder ? `3px solid ${accentColor}` : undefined,
                   alignSelf: 'stretch',
                   height: '100%',
                   minHeight: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }}
               >
-                {pageSidebarSections.length > 0 ? pageSidebarInner : (
+                {(pageSidebarSections.length > 0 || pageSidebarContinuations.length > 0) ? pageSidebarInner : (
                   <div style={{
                     height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: tplLayout.sidebarColor || 'var(--c-text-ghost)', fontSize: 11, opacity: 0.5,
@@ -2146,20 +2576,20 @@ export default function EditorPage({
           <div className="editor-ai-card">
             <div className="editor-ai-card-head">
               <div>
-                <span className="editor-score-eyebrow">AI Writing Studio</span>
+                <span className="editor-score-eyebrow">{rewriteModeLabel}</span>
                 <h3>Sharper wording, faster</h3>
               </div>
-              <span className="editor-ai-badge">Premium</span>
+              <span className="editor-ai-badge">{rewriteModeLabel}</span>
             </div>
             <p className="editor-ai-copy">
-              Rewrite the whole resume or polish the profile instantly before you export.
+              {rewriteModeDescription}
             </p>
             <div className="editor-ai-actions">
               <button type="button" className="editor-ai-btn" onClick={() => onAIRewrite?.('summary')}>
-                Rewrite summary
+                Polish summary
               </button>
               <button type="button" className="editor-ai-btn editor-ai-btn--primary" onClick={() => onAIRewrite?.('whole-resume')}>
-                Rewrite full resume
+                Polish full resume
               </button>
             </div>
           </div>
@@ -2215,12 +2645,24 @@ export default function EditorPage({
                     ))}
                   </div>
                 )}
+                {focusAreaPreview.length > 0 && (
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    {focusAreaPreview.map((area) => (
+                      <div key={area.section} className="editor-score-item">
+                        <strong>{area.section}:</strong>{' '}
+                        {area.suggestedKeywords?.length
+                          ? `add or reinforce ${area.suggestedKeywords.join(', ')}`
+                          : 'this section needs stronger job-language alignment.'}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <button type="button" className="editor-ai-btn editor-ai-btn--primary" onClick={onGenerateCompanionDocs} disabled={companionLoading}>
                   {companionLoading ? 'Generating companion copy...' : 'Generate cover letter + LinkedIn'}
                 </button>
               </div>
             ) : (
-              <p className="editor-ai-copy">Paste a job description to unlock ATS scoring, missing keyword detection, and companion application copy.</p>
+              <p className="editor-ai-copy">Paste a job description to unlock ATS scoring, section-by-section keyword guidance, and companion application copy.</p>
             )}
           </div>
 
@@ -2389,8 +2831,8 @@ export default function EditorPage({
                   colors={colors}
                   globalFont={globalFont}
                   onEdit={onEdit}
-                  sectionOrder={sectionOrder}
-                  sidebarOrder={sidebarOrder}
+                  sectionOrder={page1SectionOrder}
+                  sidebarOrder={page1SidebarOrder}
                   onMoveSection={handleMoveSection}
                   skillStyle={skillStyle}
                   contactStyle={contactStyle}
@@ -2451,8 +2893,8 @@ export default function EditorPage({
               photoShape={photoShape}
               colors={colors}
               globalFont={globalFont}
-              sectionOrder={sectionOrder}
-              sidebarOrder={sidebarOrder}
+              sectionOrder={page1SectionOrder}
+              sidebarOrder={page1SidebarOrder}
               skillStyle={skillStyle}
               contactStyle={contactStyle}
               educationStyle={educationStyle}

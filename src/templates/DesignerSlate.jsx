@@ -48,8 +48,8 @@ export default function DesignerSlate({
   const sidebarMuted = 'rgba(255,255,255,.74)';
   const softRule = 'rgba(61, 68, 86, .55)';
   const compactContacts = contactStyle === 'inline-compact';
-  const sideSectionGap = 8;
-  const mainSectionGap = 2;
+  const sideSectionGap = 6;
+  const mainSectionGap = 0;
   const mainSectionLift = -10;
   const summaryLineHeight = 1.32;
   const getGroupedSections = (exp) => Array.isArray(exp?.sections)
@@ -79,7 +79,6 @@ export default function DesignerSlate({
   const renderDesignerBullets = (bullets, options = {}) => {
     const {
       textColor,
-      dotColor,
       fontDelta = 0,
       lineHeight = 1.55,
       bulletEdit,
@@ -410,7 +409,7 @@ export default function DesignerSlate({
       return (
         <DraggableSection key={sectionId} id={sectionId}>
           <MainSectionShell title={L.experience} onRename={v => onEdit('section_rename', { sectionId: 'experience', v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={0}>
-            <div style={{ marginTop: 4 }}>
+            <div style={{ marginTop: 0 }}>
             <SortableContext items={d.experience?.map(e => `exp-${e._id}`) || []} strategy={verticalListSortingStrategy}>
               {d.experience?.map((exp, i) => (
                 <DraggableSection key={exp._id} id={`exp-${exp._id}`}>
@@ -419,7 +418,7 @@ export default function DesignerSlate({
               ))}
             </SortableContext>
             </div>
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 0 }}>
               <AddButton onClick={() => onEdit('exp_add', {})} label="experience" />
             </div>
           </MainSectionShell>
@@ -429,8 +428,8 @@ export default function DesignerSlate({
 
     if (sectionId === 'education') {
       return (
-        <DraggableSection key={sectionId} id={sectionId}>
-          <MainSectionShell title={L.education} onRename={v => onEdit('section_rename', { sectionId: 'education', v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={mainSectionLift}>
+        <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+          <MainSectionShell title={L.education} onRename={v => onEdit('section_rename', { sectionId: 'education', v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={0}>
             <EducationRenderer education={d.education} onEdit={onEdit} variant={educationStyle || 'divider-list'} accentColor={c.heading} headingColor={c.heading} textColor={c.text} fontSize={fontSize + 2} fontFamily={fontFamily} />
           </MainSectionShell>
         </DraggableSection>
@@ -439,8 +438,8 @@ export default function DesignerSlate({
 
     if (sectionId === 'certifications') {
       return (
-        <DraggableSection key={sectionId} id={sectionId}>
-          <MainSectionShell title={L.certifications} onRename={v => onEdit('section_rename', { sectionId: 'certifications', v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={mainSectionLift}>
+        <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+          <MainSectionShell title={L.certifications} onRename={v => onEdit('section_rename', { sectionId: 'certifications', v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={0}>
             <CertificationsRenderer certifications={d.certifications} onEdit={onEdit} variant={certificationStyle || 'compact-rows'} accentColor={c.heading} textColor={c.text} fontSize={fontSize + 2} fontFamily={fontFamily} />
           </MainSectionShell>
         </DraggableSection>
@@ -449,8 +448,8 @@ export default function DesignerSlate({
 
     if (sectionId === 'skills') {
       return (
-        <DraggableSection key={sectionId} id={sectionId}>
-          <MainSectionShell title={L.skills} onRename={v => onEdit('section_rename', { sectionId: 'skills', v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={mainSectionLift}>
+        <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+          <MainSectionShell title={L.skills} onRename={v => onEdit('section_rename', { sectionId: 'skills', v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={0}>
             <SkillsRenderer skills={d.skills} onEdit={onEdit} variant={skillStyle || 'minimal-divider-list'} accentColor={c.heading} textColor={c.text} fontSize={fontSize + 2} fontFamily={fontFamily} />
           </MainSectionShell>
         </DraggableSection>
@@ -461,8 +460,8 @@ export default function DesignerSlate({
     if (csMain) {
       if (isStructuredProjectSection(csMain)) {
         return (
-          <DraggableSection key={sectionId} id={sectionId}>
-            <MainSectionShell title={csMain.title} onRename={v => onEdit('custom_section_rename', { id: csMain.id, v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={mainSectionLift}>
+          <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+            <MainSectionShell title={csMain.title} onRename={v => onEdit('custom_section_rename', { id: csMain.id, v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={0}>
               <ProjectSection
                 section={{ ...csMain, title: '' }}
                 onEdit={onEdit}
@@ -480,8 +479,8 @@ export default function DesignerSlate({
 
       if (/reference/i.test(csMain.title)) {
         return (
-          <DraggableSection key={sectionId} id={sectionId}>
-            <MainSectionShell title={csMain.title} onRename={v => onEdit('custom_section_rename', { id: csMain.id, v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={mainSectionLift}>
+          <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+            <MainSectionShell title={csMain.title} onRename={v => onEdit('custom_section_rename', { id: csMain.id, v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={0}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
                 {(csMain.items || []).map((item, j) => (
                   <div key={j} className="group/item">
@@ -497,8 +496,8 @@ export default function DesignerSlate({
       }
 
       return (
-        <DraggableSection key={sectionId} id={sectionId}>
-            <MainSectionShell title={csMain.title} onRename={v => onEdit('custom_section_rename', { id: csMain.id, v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={mainSectionLift}>
+        <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+            <MainSectionShell title={csMain.title} onRename={v => onEdit('custom_section_rename', { id: csMain.id, v })} accent={c.heading} ruleColor={softRule} gap={mainSectionGap} lift={0}>
             {(csMain.items || []).map((item, j) => (
               <div key={j} className="group/item" style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
                 <span style={{ color: c.heading, opacity: 0.7, marginTop: 6, fontSize: 8 }}>&#9679;</span>
@@ -637,7 +636,7 @@ export default function DesignerSlate({
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'stretch', marginTop: 16, flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', marginTop: 6, flex: 1, minHeight: 0 }}>
         <DroppableColumn
           id="column-side"
           style={{
@@ -645,7 +644,7 @@ export default function DesignerSlate({
             minWidth: 280,
             background: c.sidebar,
             borderTopRightRadius: 58,
-            padding: '18px 24px 28px',
+            padding: '10px 24px 28px',
             overflow: 'hidden',
             alignSelf: 'stretch',
             height: '100%',
@@ -661,7 +660,7 @@ export default function DesignerSlate({
           id="column-main"
           style={{
             flex: 1,
-            padding: '18px 42px 28px',
+            padding: '8px 42px 28px',
             height: '100%',
             minHeight: 0,
             minWidth: 0,
@@ -707,9 +706,9 @@ function SidebarSectionShell({ title, onRename, accent, ruleColor, children, gap
   );
 }
 
-function MainSectionShell({ title, onRename, accent, ruleColor, children, gap = 2, lift = 0 }) {
+function MainSectionShell({ title, onRename, accent, ruleColor, children, gap = 2 }) {
   return (
-    <section style={{ marginTop: lift, marginBottom: gap, padding: '0 6px 0', marginLeft: -6, marginRight: -6 }}>
+    <section style={{ marginTop: 0, marginBottom: gap, padding: '0 6px 0', marginLeft: -6, marginRight: -6 }}>
       <EditableText
         value={title}
         onChange={onRename}

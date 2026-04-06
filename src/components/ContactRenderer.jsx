@@ -1,4 +1,5 @@
 import EditableText from './EditableText';
+import { CONTACT_VARIANTS } from './rendererVariants';
 
 /**
  * Shared contact renderer.
@@ -23,8 +24,6 @@ const VARIANTS = {
   'inline-compact': InlineCompact,
   'divider-list': DividerList,
 };
-
-export const CONTACT_VARIANTS = Object.keys(VARIANTS);
 
 export default function ContactRenderer({
   email = '',

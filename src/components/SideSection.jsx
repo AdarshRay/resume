@@ -22,13 +22,13 @@ export default function SideSection({ section, onEdit, textColor = '#d1d5db', ac
   }
 
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div style={{ marginTop: 0, marginBottom: 2 }}>
       <EditableText
         value={section.title}
         onChange={(v) => onEdit('custom_section_rename', { id: section.id, v })}
         tag="h3"
         className="text-[10px] font-bold uppercase tracking-widest"
-        style={{ color: accentColor, marginBottom: 8 }}
+        style={{ color: accentColor, marginBottom: 2 }}
       />
       <EditableText
         value={bulletBlockValue(section.items || [], '\u2022')}
@@ -43,7 +43,9 @@ export default function SideSection({ section, onEdit, textColor = '#d1d5db', ac
         className="text-[10px] leading-[1.5]"
         style={{ color: textColor, whiteSpace: 'pre-line' }}
       />
-      <AddButton onClick={() => onEdit('custom_item_add', { id: section.id })} />
+      <div style={{ marginTop: 1 }}>
+        <AddButton onClick={() => onEdit('custom_item_add', { id: section.id })} />
+      </div>
     </div>
   );
 }

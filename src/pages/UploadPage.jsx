@@ -2,6 +2,7 @@
 import { extractText } from '../utils/extractText';
 import { rewriteTextWithAI } from '../utils/rewriteWithAI';
 import GuidedFormFlow from '../components/GuidedFormFlow';
+import { getRewriteModeDescription, getRewriteModeLabel } from '../utils/aiConfig';
 
 const FORM_STORAGE_KEY = 'resumeBuilder_guidedFormDraft';
 
@@ -613,6 +614,8 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
   const [photoName, setPhotoName] = useState(initialDraft?.photoName || '');
   const [rewriteKey, setRewriteKey] = useState('');
   const [form, setForm] = useState(() => normalizeFormDraft(initialDraft?.form || {}));
+  const rewriteModeLabel = getRewriteModeLabel();
+  const rewriteModeDescription = getRewriteModeDescription();
 
   const fileRef = useRef(null);
   const photoRef = useRef(null);
@@ -970,6 +973,8 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
         emptyCustomSection={EMPTY_CUSTOM_SECTION}
         addCustomSection={addCustomSection}
         aiFillCustomSection={aiFillCustomSection}
+        rewriteModeLabel={rewriteModeLabel}
+        rewriteModeDescription={rewriteModeDescription}
       />
     );
   }
@@ -1198,7 +1203,7 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
                     copy="Use concise, recruiter-friendly language for the opening summary and the supporting skills around it."
                     actions={[
                       {
-                        label: rewriteKey === 'summary' ? 'Rewriting...' : 'Rewrite summary',
+                        label: rewriteKey === 'summary' ? 'Polishing...' : 'Polish summary',
                         onClick: () => rewriteField({
                           key: 'summary',
                           scope: 'summary',
@@ -1249,7 +1254,7 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
                               })}
                               disabled={rewriteKey === `experience-${index}`}
                             >
-                              {rewriteKey === `experience-${index}` ? 'Rewriting...' : 'Rewrite bullets'}
+                              {rewriteKey === `experience-${index}` ? 'Polishing...' : 'Polish bullets'}
                             </button>
                             <button type="button" className="upload-link-btn" onClick={() => removeArrayItem('experience', index)}>
                               Remove
@@ -1351,7 +1356,7 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
                               })}
                               disabled={rewriteKey === `project-${index}`}
                             >
-                              {rewriteKey === `project-${index}` ? 'Rewriting...' : 'Rewrite bullets'}
+                              {rewriteKey === `project-${index}` ? 'Polishing...' : 'Polish bullets'}
                             </button>
                             <button type="button" className="upload-link-btn" onClick={() => removeArrayItem('projects', index)}>
                               Remove
@@ -1476,7 +1481,7 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
                                 })}
                                 disabled={rewriteKey === `award-${index}`}
                               >
-                                {rewriteKey === `award-${index}` ? 'Rewriting...' : 'Rewrite details'}
+                                {rewriteKey === `award-${index}` ? 'Polishing...' : 'Polish details'}
                               </button>
                               <button type="button" className="upload-link-btn" onClick={() => removeArrayItem('awards', index)}>
                                 Remove
@@ -1556,7 +1561,7 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
                     copy="This review step helps you spot thin sections before the resume gets created."
                     actions={[
                       {
-                        label: rewriteKey === 'whole-form' ? 'Polishing...' : 'AI polish full draft',
+                        label: rewriteKey === 'whole-form' ? 'Polishing...' : 'Polish full draft',
                         onClick: handleRewriteWholeForm,
                         disabled: rewriteKey === 'whole-form',
                         primary: true,

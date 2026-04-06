@@ -16,7 +16,7 @@ const SORTABLE_TRANSITION = {
   easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
 };
 
-function DraggableSection({ id, children }) {
+function DraggableSection({ id, children, style: userStyle }) {
   const { removeSection } = useSectionActions();
   const {
     attributes,
@@ -32,6 +32,7 @@ function DraggableSection({ id, children }) {
   });
 
   const style = {
+    ...userStyle,
     transform: transform
       ? CSS.Transform.toString({
           x: 0,
@@ -52,7 +53,6 @@ function DraggableSection({ id, children }) {
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
       data-section-id={id}
       className={isDragging ? 'draggable-section draggable-section--dragging' : 'draggable-section'}
     >
@@ -72,6 +72,7 @@ function DraggableSection({ id, children }) {
       )}
       <div
         {...attributes}
+        {...listeners}
         className="draggable-section-handle"
         title="Drag to reorder sections"
       >

@@ -6,6 +6,7 @@ import BoldCoral from '../templates/BoldCoral';
 import DevTerminal from '../templates/DevTerminal';
 import StrategistGold from '../templates/StrategistGold';
 import CleanSlate from '../templates/CleanSlate';
+import { isAIRewriteConfigured } from '../utils/aiConfig';
 
 const TEMPLATE_MAP = {
   'designer-slate': DesignerSlate,
@@ -21,7 +22,7 @@ const TEMPLATE_ITEMS = [
   { id: 'executive-navy', name: 'Executive Navy', desc: 'Dark sidebar, gold accents', tone: 'Corporate classic' },
   { id: 'bold-coral', name: 'Bold Coral', desc: 'Diagonal banner, two-column', tone: 'Bold modern' },
   { id: 'dev-terminal', name: 'Dev Terminal', desc: 'Dark mode, monospace', tone: 'Tech-first' },
-  { id: 'strategist-gold', name: 'Strategist Gold', desc: 'Header strip, cream panel', tone: 'Warm executive' },
+  { id: 'strategist-gold', name: 'Portrait Arc', desc: 'Curved portrait, bold sidebar', tone: 'Modern profile' },
   { id: 'clean-slate', name: 'Clean Slate', desc: 'Centered, pure typography', tone: 'Minimal premium' },
 ];
 
@@ -39,7 +40,7 @@ const STYLE_DEFAULTS = {
   'executive-navy': { skillStyle: 'bullet-list', contactStyle: 'icon-list', educationStyle: 'simple-list', certificationStyle: 'simple-list' },
   'bold-coral': { skillStyle: 'pill-outline', contactStyle: 'inline-compact', educationStyle: 'divider-list', certificationStyle: 'simple-list' },
   'dev-terminal': { skillStyle: 'simple-list', contactStyle: 'inline-compact', educationStyle: 'compact-block', certificationStyle: 'simple-list' },
-  'strategist-gold': { skillStyle: 'minimal-divider-list', contactStyle: 'icon-list', educationStyle: 'timeline', certificationStyle: 'simple-list' },
+  'strategist-gold': { skillStyle: 'bullet-list', contactStyle: 'icon-list', educationStyle: 'simple-list', certificationStyle: 'simple-list' },
   'clean-slate': { skillStyle: 'simple-list', contactStyle: 'inline-compact', educationStyle: 'simple-list', certificationStyle: 'simple-list' },
 };
 
@@ -48,7 +49,7 @@ const SECTION_DEFAULTS = {
   'executive-navy': { main: ['summary', 'experience'], side: ['skills', 'education', 'certifications'] },
   'bold-coral': { main: ['summary', 'experience', 'certifications'], side: ['skills', 'education'] },
   'dev-terminal': { main: ['summary', 'experience'], side: ['skills', 'education', 'certifications'] },
-  'strategist-gold': { main: ['summary', 'experience'], side: ['skills', 'education', 'certifications'] },
+  'strategist-gold': { main: ['experience'], side: ['summary', 'skills', 'education', 'certifications'] },
   'clean-slate': { main: ['summary', 'experience'], side: ['skills', 'education', 'certifications'] },
 };
 
@@ -149,7 +150,7 @@ const CARD_SCALE = 0.145;
 
 const FEATURES = [
   { title: 'Upload Anything', desc: 'Paste text or drop PDF and DOCX resumes without wrestling with formatting.', stat: 'PDF · DOCX · Text' },
-  { title: 'AI Structuring', desc: 'Turn raw experience into a cleaner draft with sections, bullets, and styling already mapped.', stat: 'Structured in seconds' },
+  { title: 'Smart Structuring', desc: 'Turn raw experience into a cleaner draft with sections, bullets, and styling already mapped.', stat: 'Structured in seconds' },
   { title: 'Premium Editing', desc: 'Live templates, drag-and-drop sections, colors, fonts, and polished export-ready layouts.', stat: 'Fully customizable' },
 ];
 
@@ -210,6 +211,7 @@ const LandingPreview = memo(function LandingPreview({ templateId, scale = CARD_S
 
 export default function LandingPage({ onStart }) {
   const [chooserOpen, setChooserOpen] = useState(false);
+  const rewriteReady = isAIRewriteConfigured();
 
   const openChooser = () => setChooserOpen(true);
   const closeChooser = () => setChooserOpen(false);
@@ -238,7 +240,7 @@ export default function LandingPage({ onStart }) {
             </h1>
 
             <p className="landing-subtitle">
-              Upload any resume, let AI structure the content, and refine it with premium templates that look polished before you touch a thing.
+              Upload any resume, turn it into an editable draft, and refine it with premium templates that look polished before you touch a thing.
             </p>
 
             <div className="landing-cta-row">
@@ -258,7 +260,7 @@ export default function LandingPage({ onStart }) {
             <div className="landing-stats">
               <div className="landing-stat-card">
                 <strong>1-click</strong>
-                <span>AI extraction from existing resumes</span>
+                <span>{rewriteReady ? 'AI-assisted polish available' : 'Built-in draft polish included'}</span>
               </div>
               <div className="landing-stat-card">
                 <strong>Pixel clean</strong>
@@ -357,7 +359,7 @@ export default function LandingPage({ onStart }) {
               <div className="landing-chooser-grid">
                 <button type="button" className="landing-chooser-card" onClick={() => handleModeStart('form')}>
                   <strong>Guided Form</strong>
-                  <p>Answer step by step, skip any section, and use AI-assisted starters for custom sections.</p>
+                  <p>Answer step by step, skip any section, and use guided starter content for custom sections.</p>
                 </button>
                 <button type="button" className="landing-chooser-card" onClick={() => handleModeStart('paste')}>
                   <strong>Text Import</strong>
@@ -375,7 +377,3 @@ export default function LandingPage({ onStart }) {
     </DndContext>
   );
 }
-
-
-
-

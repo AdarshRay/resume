@@ -3,6 +3,7 @@ import AddButton from './AddButton';
 import DeleteButton from './DeleteButton';
 import { bulletBlockValue, parseBulletBlock } from '../utils/bulletBlocks';
 import { syncIndexedList } from '../utils/blockListEditing';
+import { SKILL_VARIANTS } from './rendererVariants';
 
 const VARIANTS = {
   'simple-list': SimpleList,
@@ -17,8 +18,6 @@ const VARIANTS = {
   'icon-list': IconList,
   'minimal-divider-list': MinimalDividerList,
 };
-
-export const SKILL_VARIANTS = Object.keys(VARIANTS);
 
 export default function SkillsRenderer({
   skills = [],

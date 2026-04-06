@@ -134,7 +134,7 @@ export default function DevTerminal({ data, colors = {}, globalFont = {}, onEdit
   };
 
   return (
-    <div style={{ width: '100%', minHeight: '100%', fontFamily, fontSize: `${baseFontSize}px`, background: bgColor, padding: '36px 34px 28px 34px', color: textColor }}>
+    <div style={{ width: '100%', minHeight: '100%', fontFamily, fontSize: `${baseFontSize}px`, background: bgColor, padding: '18px 34px 28px 34px', color: textColor }}>
       {/* Terminal-style top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: sectionGap }}>
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#F43F5E' }} />

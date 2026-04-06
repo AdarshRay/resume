@@ -219,7 +219,7 @@ export default function ProjectSection({
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 10, marginTop: 2, flexWrap: 'wrap' }}>
                 <AddButton onClick={() => onEdit('custom_item_detail_add', { id: section.id, j: projectIndex })} label="detail line" />
                 <button
                   type="button"

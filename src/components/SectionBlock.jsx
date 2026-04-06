@@ -9,7 +9,6 @@ export default function SectionBlock({
   index,
   children,
   onMoveSection,
-  totalSections,
 }) {
   const ref = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -56,7 +55,7 @@ export default function SectionBlock({
       if (fromIndex !== toIndex && fromIndex !== toIndex - 1) {
         onMoveSection(fromIndex, toIndex > fromIndex ? toIndex - 1 : toIndex);
       }
-    } catch (err) {
+    } catch {
       // ignore
     }
   };

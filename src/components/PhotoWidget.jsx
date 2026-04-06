@@ -12,7 +12,6 @@ const SHAPES = {
 export default function PhotoWidget({ photo, onPhoto, ps, onPs, height = 120, shape = 'square', borderColor }) {
   const [hover, setHover] = useState(false);
   const fileRef = useRef(null);
-  const dragRef = useRef(null);
 
   const clip = SHAPES[shape] || 'none';
   const zoom = ps?.zoom || 100;

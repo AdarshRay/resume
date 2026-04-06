@@ -1,4 +1,4 @@
-import { useRichTextToolbar } from './RichTextToolbarContext';
+import { useRichTextToolbar } from './useRichTextToolbar';
 
 function ToolbarButton({ active = false, label, onMouseDown, children }) {
   return (
@@ -100,7 +100,7 @@ export default function RichTextToolbarIsland() {
             <input
               type="number"
               min="8"
-              max="30"
+              max="72"
               value={state.fontSize || 14}
               onChange={(event) => applyExactFontSize(event.target.value)}
               onMouseDown={() => beginToolbarInteraction?.()}

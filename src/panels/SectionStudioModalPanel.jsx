@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { buildSectionPayload, createEmptySectionDraft, getSectionTemplate, SECTION_TEMPLATE_DEFS } from '../utils/sectionStudio';
 
 const HAS_SIDEBAR = ['executive-navy', 'bold-coral', 'strategist-gold', 'designer-slate'];
@@ -238,24 +238,29 @@ export default function SectionStudioModalPanel({ data, customSections, onEdit, 
   const activeBuiltin = modalState?.type === 'builtin' ? BUILTIN_SECTIONS.find((section) => section.id === modalState.sectionId) : null;
   const hiddenSet = useMemo(() => new Set(hiddenSections || []), [hiddenSections]);
 
-  useEffect(() => {
-    if (activeTemplate) {
-      setPlacement(activeTemplate.defaultPlacement);
-      setDraft(createEmptySectionDraft(activeTemplate.id));
-      return;
-    }
-    if (activeCustomSection) {
-      setPlacement(activeCustomSection.placement || 'main');
-      setCustomTitle(activeCustomSection.title || '');
-      setCustomItemsText((activeCustomSection.items || []).join('\n'));
-      return;
-    }
+  const closeModal = () => setModalState(null);
+  const openBuiltinModal = (sectionId) => {
+    setPlacement('main');
     setDraft({});
     setCustomTitle('');
     setCustomItemsText('');
-  }, [activeTemplate, activeCustomSection]);
-
-  const closeModal = () => setModalState(null);
+    setModalState({ type: 'builtin', sectionId });
+  };
+  const openTemplateModal = (templateId) => {
+    const templateDef = getSectionTemplate(templateId);
+    setPlacement(templateDef?.defaultPlacement || 'main');
+    setDraft(createEmptySectionDraft(templateId));
+    setCustomTitle('');
+    setCustomItemsText('');
+    setModalState({ type: 'template', templateId });
+  };
+  const openCustomModal = (section) => {
+    setPlacement(section?.placement || 'main');
+    setDraft({});
+    setCustomTitle(section?.title || '');
+    setCustomItemsText((section?.items || []).join('\n'));
+    setModalState({ type: 'custom', sectionId: section.id });
+  };
 
   const addTemplateSection = () => {
     if (!activeTemplate) return;
@@ -496,7 +501,7 @@ export default function SectionStudioModalPanel({ data, customSections, onEdit, 
           </div>
           <div className="studio-launch-list">
             {BUILTIN_SECTIONS.map((section) => (
-              <LaunchCard key={section.id} icon={section.icon} title={sectionLabels[section.id] || section.label} description={section.description} meta={hiddenSet.has(section.id) ? 'Hidden' : `${section.count(data)} item${section.count(data) === 1 ? '' : 's'}`} onClick={() => setModalState({ type: 'builtin', sectionId: section.id })} onRemove={() => onEdit(hiddenSet.has(section.id) ? 'section_show' : 'section_hide', { sectionId: section.id })} removeLabel={hiddenSet.has(section.id) ? 'Restore' : 'Remove'} />
+              <LaunchCard key={section.id} icon={section.icon} title={sectionLabels[section.id] || section.label} description={section.description} meta={hiddenSet.has(section.id) ? 'Hidden' : `${section.count(data)} item${section.count(data) === 1 ? '' : 's'}`} onClick={() => openBuiltinModal(section.id)} onRemove={() => onEdit(hiddenSet.has(section.id) ? 'section_show' : 'section_hide', { sectionId: section.id })} removeLabel={hiddenSet.has(section.id) ? 'Restore' : 'Remove'} />
             ))}
           </div>
         </section>
@@ -511,7 +516,7 @@ export default function SectionStudioModalPanel({ data, customSections, onEdit, 
           </div>
           <div className="studio-launch-list">
             {SECTION_TEMPLATE_DEFS.map((templateDef) => (
-              <LaunchCard key={templateDef.id} icon={templateDef.icon} title={templateDef.title} description={templateDef.description} meta={templateDef.defaultPlacement === 'side' ? 'Sidebar' : 'Main'} tone="soft" onClick={() => setModalState({ type: 'template', templateId: templateDef.id })} />
+              <LaunchCard key={templateDef.id} icon={templateDef.icon} title={templateDef.title} description={templateDef.description} meta={templateDef.defaultPlacement === 'side' ? 'Sidebar' : 'Main'} tone="soft" onClick={() => openTemplateModal(templateDef.id)} />
             ))}
           </div>
         </section>
@@ -527,7 +532,7 @@ export default function SectionStudioModalPanel({ data, customSections, onEdit, 
             </div>
             <div className="studio-launch-list">
               {customSections.map((section) => (
-                <LaunchCard key={section.id} icon={section.title.slice(0, 2).toUpperCase()} title={section.title} description={section.kind === 'project-list' ? 'Structured project section from the guided form.' : 'Custom section you can rename, move, or edit.'} meta={section.placement === 'side' ? 'Sidebar' : 'Main'} onClick={() => setModalState({ type: 'custom', sectionId: section.id })} onRemove={() => onEdit('custom_section_del', { id: section.id })} />
+                <LaunchCard key={section.id} icon={section.title.slice(0, 2).toUpperCase()} title={section.title} description={section.kind === 'project-list' ? 'Structured project section from the guided form.' : 'Custom section you can rename, move, or edit.'} meta={section.placement === 'side' ? 'Sidebar' : 'Main'} onClick={() => openCustomModal(section)} onRemove={() => onEdit('custom_section_del', { id: section.id })} />
               ))}
             </div>
           </section>

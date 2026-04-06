@@ -81,23 +81,23 @@ export default function BoldCoral({ data, photo, photoSettings = {}, onPhotoSett
               </DraggableSection>
             ))}
           </SortableContext>
-          <div style={{ marginTop: 8 }}>
+          <div style={{ marginTop: 0 }}>
             <AddButton onClick={() => onEdit('exp_add', {})} label="experience" />
           </div>
         </section>
       </DraggableSection>
     );
     if (sectionId === 'skills') return (
-      <DraggableSection key={sectionId} id={sectionId}>
-        <section style={{ marginTop: mainSectionLift, marginBottom: sectionGap }}>
+      <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+        <section style={{ marginBottom: sectionGap }}>
           <EditableText value={L.skills} onChange={v => onEdit('section_rename', { sectionId: 'skills', v })} tag="h2" style={{ fontSize: 13, fontWeight: 700, color: headingColor, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: headingGap, paddingBottom: 3, borderBottom: `2px solid ${accent}` }} />
           <SkillsRenderer skills={d.skills} onEdit={onEdit} variant={skillStyle || 'pill-outline'} accentColor={accent} textColor={accent} fontSize={baseFontSize} fontFamily={fontFamily} />
         </section>
       </DraggableSection>
     );
     if (sectionId === 'education') return (
-      <DraggableSection key={sectionId} id={sectionId}>
-        <section style={{ marginTop: mainSectionLift, marginBottom: sectionGap }}>
+      <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+        <section style={{ marginBottom: sectionGap }}>
           <EditableText value={L.education} onChange={v => onEdit('section_rename', { sectionId: 'education', v })} tag="h2" style={{ fontSize: 13, fontWeight: 700, color: headingColor, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: headingGap, paddingBottom: 3, borderBottom: `2px solid ${accent}` }} />
           <EducationRenderer education={d.education} onEdit={onEdit} variant={educationStyle || 'simple-list'} accentColor={accent} headingColor={headingColor} textColor={textColor} fontSize={baseFontSize} fontFamily={fontFamily} />
         </section>
@@ -106,8 +106,8 @@ export default function BoldCoral({ data, photo, photoSettings = {}, onPhotoSett
     if (sectionId === 'certifications') {
       if (!d.certifications?.length) return null;
       return (
-        <DraggableSection key={sectionId} id={sectionId}>
-          <section style={{ marginTop: mainSectionLift, marginBottom: sectionGap }}>
+        <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+          <section style={{ marginBottom: sectionGap }}>
             <EditableText value={L.certifications} onChange={v => onEdit('section_rename', { sectionId: 'certifications', v })} tag="h2" style={{ fontSize: 13, fontWeight: 700, color: headingColor, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: headingGap, paddingBottom: 3, borderBottom: `2px solid ${accent}` }} />
             <CertificationsRenderer certifications={d.certifications} onEdit={onEdit} variant={certificationStyle || 'simple-list'} accentColor={accent} textColor={textColor} fontSize={baseFontSize} fontFamily={fontFamily} />
           </section>
@@ -116,8 +116,8 @@ export default function BoldCoral({ data, photo, photoSettings = {}, onPhotoSett
     }
     const csLeft = findCS(sectionId);
     if (csLeft) return (
-      <DraggableSection key={sectionId} id={sectionId}>
-        <div style={{ marginTop: mainSectionLift }}>
+      <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+        <div>
           <MainSection section={csLeft} onEdit={onEdit} headingColor={headingColor} bodyColor={textColor} accentColor={accent} />
         </div>
       </DraggableSection>
@@ -142,8 +142,8 @@ export default function BoldCoral({ data, photo, photoSettings = {}, onPhotoSett
       </DraggableSection>
     );
     if (sectionId === 'experience') return (
-      <DraggableSection key={sectionId} id={sectionId}>
-        <section style={{ marginTop: mainSectionLift, marginBottom: sectionGap }}>
+      <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+        <section style={{ marginBottom: sectionGap }}>
           <EditableText value={L.experience} onChange={v => onEdit('section_rename', { sectionId: 'experience', v })} tag="h2" style={{ fontSize: 13, fontWeight: 700, color: headingColor, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: headingGap, paddingBottom: 3, borderBottom: `1px solid ${accent}40` }} />
           <SortableContext items={d.experience?.map(e => `exp-${e._id}`) || []} strategy={verticalListSortingStrategy}>
             {d.experience?.map((exp, i) => (
@@ -164,16 +164,16 @@ export default function BoldCoral({ data, photo, photoSettings = {}, onPhotoSett
       </DraggableSection>
     );
     if (sectionId === 'skills') return (
-      <DraggableSection key={sectionId} id={sectionId}>
-        <section style={{ marginTop: mainSectionLift, marginBottom: sectionGap }}>
+      <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+        <section style={{ marginBottom: sectionGap }}>
           <EditableText value={L.skills} onChange={v => onEdit('section_rename', { sectionId: 'skills', v })} tag="h2" style={{ fontSize: 13, fontWeight: 700, color: headingColor, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: headingGap, paddingBottom: 3, borderBottom: `1px solid ${accent}40` }} />
           <SkillsRenderer skills={d.skills} onEdit={onEdit} variant={skillStyle || 'pill-outline'} accentColor={accent} textColor={accent} fontSize={baseFontSize} fontFamily={fontFamily} />
         </section>
       </DraggableSection>
     );
     if (sectionId === 'education') return (
-      <DraggableSection key={sectionId} id={sectionId}>
-        <section style={{ marginTop: mainSectionLift, marginBottom: sectionGap }}>
+      <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+        <section style={{ marginBottom: sectionGap }}>
           <EditableText value={L.education} onChange={v => onEdit('section_rename', { sectionId: 'education', v })} tag="h2" style={{ fontSize: 13, fontWeight: 700, color: headingColor, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: headingGap, paddingBottom: 3, borderBottom: `1px solid ${accent}40` }} />
           <EducationRenderer education={d.education} onEdit={onEdit} variant={educationStyle || 'simple-list'} accentColor={accent} headingColor={headingColor} textColor={textColor} fontSize={baseFontSize} fontFamily={fontFamily} />
         </section>
@@ -182,8 +182,8 @@ export default function BoldCoral({ data, photo, photoSettings = {}, onPhotoSett
     if (sectionId === 'certifications') {
       if (!d.certifications?.length) return null;
       return (
-        <DraggableSection key={sectionId} id={sectionId}>
-          <section style={{ marginTop: mainSectionLift, marginBottom: sectionGap }}>
+        <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+          <section style={{ marginBottom: sectionGap }}>
             <EditableText value={L.certifications} onChange={v => onEdit('section_rename', { sectionId: 'certifications', v })} tag="h2" style={{ fontSize: 13, fontWeight: 700, color: headingColor, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: headingGap, paddingBottom: 3, borderBottom: `1px solid ${accent}40` }} />
             <CertificationsRenderer certifications={d.certifications} onEdit={onEdit} variant={certificationStyle || 'simple-list'} accentColor={accent} textColor={textColor} fontSize={baseFontSize} fontFamily={fontFamily} />
           </section>
@@ -192,8 +192,8 @@ export default function BoldCoral({ data, photo, photoSettings = {}, onPhotoSett
     }
     const csRight = findCS(sectionId);
     if (csRight) return (
-      <DraggableSection key={sectionId} id={sectionId}>
-        <div style={{ marginTop: mainSectionLift }}>
+      <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+        <div>
           <SideSection section={csRight} onEdit={onEdit} textColor={textColor} accentColor={accent} />
         </div>
       </DraggableSection>
@@ -243,7 +243,7 @@ export default function BoldCoral({ data, photo, photoSettings = {}, onPhotoSett
               tag="p"
               style={{ fontSize: 13, fontWeight: 500, color: 'rgba(255,255,255,.85)', marginTop: 4 }}
             />
-            <div style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 0 }}>
               <ContactRenderer email={d.email} phone={d.phone} location={d.location} onEdit={onEdit} variant={contactStyle || 'inline-compact'} accentColor="rgba(255,255,255,.5)" textColor="rgba(255,255,255,.9)" fontSize={baseFontSize} fontFamily={fontFamily} />
             </div>
           </div>
@@ -263,7 +263,7 @@ export default function BoldCoral({ data, photo, photoSettings = {}, onPhotoSett
       </div>
 
       {/* ===== TWO-COLUMN BODY ===== */}
-      <div style={{ display: 'flex', padding: '18px var(--space-xl) 18px var(--space-xl)', gap: 18 }}>
+      <div style={{ display: 'flex', padding: '8px var(--space-xl) 18px var(--space-xl)', gap: 18 }}>
         {/* LEFT - wider column */}
         <DroppableColumn id="column-main" style={{ flex: 2 }}>
           <SortableContext items={mainSections} strategy={verticalListSortingStrategy}>

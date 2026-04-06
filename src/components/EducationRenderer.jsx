@@ -1,6 +1,7 @@
 import EditableText from './EditableText';
 import AddButton from './AddButton';
 import DeleteButton from './DeleteButton';
+import { EDUCATION_VARIANTS } from './rendererVariants';
 
 const VARIANTS = {
   'simple-list':   SimpleList,
@@ -9,8 +10,6 @@ const VARIANTS = {
   'compact-block': CompactBlock,
   'divider-list':  DividerList,
 };
-
-export const EDUCATION_VARIANTS = Object.keys(VARIANTS);
 
 export default function EducationRenderer({
   education = [],

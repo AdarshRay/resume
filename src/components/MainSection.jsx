@@ -21,13 +21,13 @@ export default function MainSection({ section, onEdit, headingColor = '#1a1a2e',
   }
 
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div style={{ marginTop: 0, marginBottom: 2 }}>
       <EditableText
         value={section.title}
         onChange={(v) => onEdit('custom_section_rename', { id: section.id, v })}
         tag="h2"
         className="text-[11px] font-bold uppercase tracking-wider"
-        style={{ color: headingColor, marginBottom: 8 }}
+        style={{ color: headingColor, marginBottom: 2 }}
       />
       <EditableText
         value={bulletBlockValue(section.items || [], '\u2022')}
@@ -42,7 +42,9 @@ export default function MainSection({ section, onEdit, headingColor = '#1a1a2e',
         className="text-[10px] leading-[1.55]"
         style={{ color: bodyColor, whiteSpace: 'pre-line' }}
       />
-      <AddButton onClick={() => onEdit('custom_item_add', { id: section.id })} />
+      <div style={{ marginTop: 1 }}>
+        <AddButton onClick={() => onEdit('custom_item_add', { id: section.id })} />
+      </div>
     </div>
   );
 }

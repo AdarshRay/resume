@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
-import { useRichTextToolbar } from './RichTextToolbarContext';
+import { useRichTextToolbar } from './useRichTextToolbar';
 import { sanitizeRichText, serializeRichText } from '../utils/richText';
 
 export default function EditableText({ value, onChange, tag = 'span', style, className = '', multiline, placeholder, bulletBlock = false }) {
@@ -15,6 +15,21 @@ export default function EditableText({ value, onChange, tag = 'span', style, cla
       ref.current.innerHTML = nextHtml;
     }
   }, [value, multiline]);
+
+  useEffect(() => {
+    if (!ref.current) return undefined;
+    const element = ref.current;
+    const handleRichTextReplace = () => {
+      const nextHtml = element.getAttribute('data-pending-richtext');
+      if (!nextHtml) return;
+      element.innerHTML = nextHtml;
+      element.removeAttribute('data-pending-richtext');
+      const nextValue = serializeRichText(element, { multiline });
+      onChange(nextValue);
+    };
+    element.addEventListener('richtext-replace', handleRichTextReplace);
+    return () => element.removeEventListener('richtext-replace', handleRichTextReplace);
+  }, [multiline, onChange]);
 
   const handleBlur = useCallback(() => {
     if (toolbar?.isToolbarInteracting?.()) {
@@ -58,9 +73,7 @@ export default function EditableText({ value, onChange, tag = 'span', style, cla
   // When editing, stop propagation so dnd-kit doesn't start a drag
   // When not editing, let the event bubble up to the drag listener
   const handleMouseDown = useCallback((e) => {
-    if (editing) {
-      e.stopPropagation();
-    }
+    e.stopPropagation();
   }, [editing]);
 
   const handleFocus = useCallback(() => {
@@ -94,10 +107,11 @@ export default function EditableText({ value, onChange, tag = 'span', style, cla
       onKeyDown={handleKeyDown}
       className={className}
       style={{
+        margin: 0,
         ...style,
-        cursor: editing ? 'text' : 'inherit',
-        userSelect: editing ? 'text' : 'none',
-        WebkitUserSelect: editing ? 'text' : 'none',
+        cursor: 'text',
+        userSelect: 'text',
+        WebkitUserSelect: 'text',
       }}
       data-rich-text-root="true"
       data-bullet-block={bulletBlock ? 'true' : undefined}

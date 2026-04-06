@@ -120,6 +120,8 @@ export default function GuidedFormFlow({
   emptyReference,
   addCustomSection,
   aiFillCustomSection,
+  rewriteModeLabel,
+  rewriteModeDescription,
 }) {
   const currentStepMeta = formSteps[formStep];
   const guidedProgress = Math.round(((formStep + 1) / formSteps.length) * 100);
@@ -216,6 +218,11 @@ export default function GuidedFormFlow({
               <strong>{completion}% complete</strong>
               <p>Every section is optional. Keep the ones that fit this resume, skip the rest, and come back later if you want.</p>
             </div>
+
+            <div className="upload-guided-sidebar-card">
+              <strong>{rewriteModeLabel}</strong>
+              <p>{rewriteModeDescription}</p>
+            </div>
           </aside>
 
           <main className="upload-guided-main premium-surface">
@@ -258,7 +265,7 @@ export default function GuidedFormFlow({
                   copy="Use concise, recruiter-friendly language for your summary and the strengths that support it."
                   actions={[
                     {
-                      label: rewriteKey === 'summary' ? 'Rewriting...' : 'Rewrite summary',
+                      label: rewriteKey === 'summary' ? 'Polishing...' : 'Polish summary',
                       onClick: () => rewriteField({
                         key: 'summary',
                         scope: 'summary',
@@ -300,7 +307,7 @@ export default function GuidedFormFlow({
                             })}
                             disabled={rewriteKey === `experience-${index}`}
                           >
-                            {rewriteKey === `experience-${index}` ? 'Rewriting...' : 'Rewrite bullets'}
+                            {rewriteKey === `experience-${index}` ? 'Polishing...' : 'Polish bullets'}
                           </button>
                           <button type="button" className="upload-link-btn" onClick={() => removeArrayItem('experience', index)}>
                             Remove
@@ -377,7 +384,7 @@ export default function GuidedFormFlow({
                             })}
                             disabled={rewriteKey === `project-${index}`}
                           >
-                            {rewriteKey === `project-${index}` ? 'Rewriting...' : 'Rewrite bullets'}
+                            {rewriteKey === `project-${index}` ? 'Polishing...' : 'Polish bullets'}
                           </button>
                           <button type="button" className="upload-link-btn" onClick={() => removeArrayItem('projects', index)}>
                             Remove
@@ -456,7 +463,7 @@ export default function GuidedFormFlow({
                             })}
                             disabled={rewriteKey === `award-${index}`}
                           >
-                            {rewriteKey === `award-${index}` ? 'Rewriting...' : 'Rewrite details'}
+                            {rewriteKey === `award-${index}` ? 'Polishing...' : 'Polish details'}
                           </button>
                           <button type="button" className="upload-link-btn" onClick={() => removeArrayItem('awards', index)}>
                             Remove
@@ -560,7 +567,7 @@ export default function GuidedFormFlow({
                       Add blank section
                     </button>
                     <button type="button" className="upload-mini-action upload-mini-action--primary" onClick={() => handleCreateCustomSection(true)} disabled={!customTitle.trim() || rewriteKey === 'custom-section-builder'}>
-                      {rewriteKey === 'custom-section-builder' ? 'Building...' : 'AI build starter'}
+                      {rewriteKey === 'custom-section-builder' ? 'Building...' : 'Build starter'}
                     </button>
                   </div>
                 </div>
@@ -577,7 +584,7 @@ export default function GuidedFormFlow({
                           <strong>{item.title || `Custom section ${index + 1}`}</strong>
                           <div className="upload-repeat-head-actions">
                             <button type="button" className="upload-mini-action" onClick={() => aiFillCustomSection(index)} disabled={!item.title.trim() || rewriteKey === `custom-section-${index}`}>
-                              {rewriteKey === `custom-section-${index}` ? 'Building...' : 'AI build section'}
+                              {rewriteKey === `custom-section-${index}` ? 'Building...' : 'Build section'}
                             </button>
                             <button type="button" className="upload-link-btn" onClick={() => removeArrayItem('customSections', index)}>
                               Remove
@@ -611,7 +618,7 @@ export default function GuidedFormFlow({
                   copy="This final pass helps you catch thin sections and see whether the draft feels complete."
                   actions={[
                     {
-                      label: rewriteKey === 'whole-form' ? 'Polishing...' : 'AI polish full draft',
+                      label: rewriteKey === 'whole-form' ? 'Polishing...' : 'Polish full draft',
                       onClick: handleRewriteWholeForm,
                       disabled: rewriteKey === 'whole-form',
                       primary: true,

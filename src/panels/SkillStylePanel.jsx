@@ -1,4 +1,4 @@
-import { SKILL_VARIANTS } from '../components/SkillsRenderer';
+import { SKILL_VARIANTS } from '../components/rendererVariants';
 
 const LABELS = {
   'simple-list':  'Simple List',

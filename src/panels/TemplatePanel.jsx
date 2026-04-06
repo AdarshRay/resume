@@ -6,7 +6,7 @@ const TEMPLATES = [
   { id: 'executive-navy', name: 'Executive Navy', desc: 'Dark sidebar · Gold accents' },
   { id: 'bold-coral', name: 'Bold Coral', desc: 'Gradient banner · Bold type' },
   { id: 'dev-terminal', name: 'Dev Terminal', desc: 'Dark mono · Code-inspired' },
-  { id: 'strategist-gold', name: 'Strategist Gold', desc: 'Header strip · Warm tones' },
+  { id: 'strategist-gold', name: 'Portrait Arc', desc: 'Curved portrait · Bold sidebar' },
   { id: 'clean-slate', name: 'Clean Slate', desc: 'Centered · Minimal layout' },
 ];
 
@@ -32,7 +32,8 @@ const inertCollision = () => [];
  * MiniPreview — renders a single template at thumbnail scale.
  * Wrapped in React.memo so it only re-renders when its specific props change.
  */
-const MiniPreview = memo(function MiniPreview({ TemplateComp, colors, data, photo, photoSettings, photoShape, globalFont, sectionOrder, sidebarOrder, skillStyle, contactStyle, educationStyle, certificationStyle, sectionLabels }) {
+const MiniPreview = memo(function MiniPreview({ templateComp, colors, data, photo, photoSettings, photoShape, globalFont, sectionOrder, sidebarOrder, skillStyle, contactStyle, educationStyle, certificationStyle, sectionLabels }) {
+  const TemplateComponent = templateComp;
   return (
     <div
       className="tpl-preview-frame"
@@ -55,7 +56,7 @@ const MiniPreview = memo(function MiniPreview({ TemplateComp, colors, data, phot
           borderRadius: `${3 / SCALE}px`,
         }}
       >
-        <TemplateComp
+        <TemplateComponent
           data={data}
           photo={photo}
           photoSettings={photoSettings}
@@ -140,7 +141,7 @@ export default function TemplatePanel({
               <div style={{ padding: '8px 8px 0' }}>
                 {Comp ? (
                   <MiniPreview
-                    TemplateComp={Comp}
+                    templateComp={Comp}
                     colors={colorsByTemplate[t.id]}
                     data={deferredData}
                     photo={deferredPhoto}

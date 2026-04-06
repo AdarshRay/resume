@@ -1,9 +1,5 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { Suspense, lazy, useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import Nav from './components/Nav';
-import LandingPage from './pages/LandingPage';
-import UploadPage from './pages/UploadPage';
-import GeneratingPage from './pages/GeneratingPage';
-import EditorPage from './pages/EditorPage';
 import { RichTextToolbarProvider } from './components/RichTextToolbarContext';
 import safe from './utils/safeData';
 import { rewriteTextWithAI } from './utils/rewriteWithAI';
@@ -18,6 +14,11 @@ import {
   saveWorkspace,
   serializeProjectForExport,
 } from './utils/workspace';
+
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const UploadPage = lazy(() => import('./pages/UploadPage'));
+const GeneratingPage = lazy(() => import('./pages/GeneratingPage'));
+const EditorPage = lazy(() => import('./pages/EditorPage'));
 
 const THEME_KEY = 'resumeBuilder_theme';
 function loadTheme() {
@@ -37,7 +38,7 @@ const TEMPLATE_SECTION_DEFAULTS = {
   'executive-navy':  { main: ['summary', 'experience'], side: ['skills', 'education', 'certifications'] },
   'bold-coral':      { main: ['summary', 'experience'], side: ['skills', 'education', 'certifications'] },
   'dev-terminal':    { main: ['summary', 'experience'], side: ['skills', 'education', 'certifications'] },
-  'strategist-gold': { main: ['summary', 'experience'], side: ['skills', 'education', 'certifications'] },
+  'strategist-gold': { main: ['experience'], side: ['summary', 'skills', 'education', 'certifications'] },
   'clean-slate':     { main: ['summary', 'experience'], side: ['skills', 'education', 'certifications'] },
   'designer-slate':  { main: ['summary', 'experience'], side: ['skills', 'education', 'certifications'] },
 };
@@ -50,6 +51,23 @@ const SIDEBAR_PREFERRED = ['skills', 'certifications'];
 const ALL_BUILTIN_SECTIONS = ['summary', 'experience', 'skills', 'education', 'certifications'];
 // Templates that use a 2-column layout
 const TWO_COLUMN_TEMPLATES = ['executive-navy', 'bold-coral', 'strategist-gold', 'designer-slate'];
+const PORTRAIT_ARC_LOCKED_COLUMNS = {
+  summary: 'side',
+  experience: 'main',
+  skills: 'side',
+  education: 'side',
+  certifications: 'side',
+};
+
+function getLockedColumn(template, sectionId) {
+  if (template === 'strategist-gold') {
+    return PORTRAIT_ARC_LOCKED_COLUMNS[sectionId] || null;
+  }
+  if (TWO_COLUMN_TEMPLATES.includes(template) && MAIN_ONLY_SECTIONS.includes(sectionId)) {
+    return 'main';
+  }
+  return null;
+}
 
 function arraysEqual(a = [], b = []) {
   if (a.length !== b.length) return false;
@@ -68,17 +86,20 @@ function validateSectionPlacement(mainArr, sideArr, template, hiddenSections = [
   const isTwoCol = TWO_COLUMN_TEMPLATES.includes(template);
   const defaults = TEMPLATE_SECTION_DEFAULTS[template] || TEMPLATE_SECTION_DEFAULTS['executive-navy'];
 
-  // 1. Enforce main-only sections (move out of sidebar)
+  // 1. Enforce template-locked built-in sections.
   if (isTwoCol) {
-    for (const id of MAIN_ONLY_SECTIONS) {
-      const sideIdx = side.indexOf(id);
-      if (sideIdx !== -1) {
-        side.splice(sideIdx, 1);
-        if (!main.includes(id)) {
-          // Insert after summary if possible, else at end
-          const summaryIdx = main.indexOf('summary');
-          main.splice(summaryIdx >= 0 ? summaryIdx + 1 : main.length, 0, id);
-        }
+    for (const id of ALL_BUILTIN_SECTIONS) {
+      const lockedColumn = getLockedColumn(template, id);
+      if (!lockedColumn || hidden.has(id)) continue;
+      const source = lockedColumn === 'main' ? side : main;
+      const target = lockedColumn === 'main' ? main : side;
+      let sourceIdx = source.indexOf(id);
+      while (sourceIdx !== -1) {
+        source.splice(sourceIdx, 1);
+        sourceIdx = source.indexOf(id);
+      }
+      if (!target.includes(id)) {
+        target.push(id);
       }
     }
   }
@@ -118,7 +139,12 @@ function validateSectionPlacement(mainArr, sideArr, template, hiddenSections = [
       continue;
     }
     if (main.includes(id) && side.includes(id)) {
-      if (defaults.main.includes(id)) {
+      const lockedColumn = getLockedColumn(template, id);
+      if (lockedColumn === 'main') {
+        side.splice(side.indexOf(id), 1);
+      } else if (lockedColumn === 'side') {
+        main.splice(main.indexOf(id), 1);
+      } else if (defaults.main.includes(id)) {
         side.splice(side.indexOf(id), 1);
       } else {
         main.splice(main.indexOf(id), 1);
@@ -128,7 +154,9 @@ function validateSectionPlacement(mainArr, sideArr, template, hiddenSections = [
 
   // 4. Enforce default ordering: built-in sections first (in template-default order),
   //    then custom sections (preserving their relative order)
+  const useSidebarCustomPriority = template !== 'strategist-gold';
   const customPriority = (id, isSidebar) => {
+    if (!useSidebarCustomPriority) return 999;
     if (!isSidebar) return 999;
     if (typeof id !== 'string') return 999;
     if (id.startsWith('cs_contact_details_') || id.startsWith('cs_personal_details_') || id.startsWith('cs_references_')) return -10;
@@ -146,8 +174,8 @@ function validateSectionPlacement(mainArr, sideArr, template, hiddenSections = [
     custom.sort((a, b) => customPriority(a, isSidebar) - customPriority(b, isSidebar));
     return isSidebar ? [...custom.filter(id => customPriority(id, true) < 0), ...builtin, ...custom.filter(id => customPriority(id, true) >= 0)] : [...builtin, ...custom];
   };
-  const sortedMain = sortColumn(main, ['summary', 'experience', ...defaults.main.filter(id => !['summary', 'experience'].includes(id))]);
-  const sortedSide = sortColumn(side, ['skills', 'education', 'certifications'], true);
+  const sortedMain = sortColumn(main, defaults.main);
+  const sortedSide = sortColumn(side, defaults.side, true);
 
   return { main: sortedMain, side: sortedSide };
 }
@@ -175,7 +203,7 @@ const STYLE_DEFAULTS = {
   'executive-navy':  { skillStyle: 'bullet-list',          contactStyle: 'icon-list',       educationStyle: 'simple-list',   certificationStyle: 'simple-list' },
   'bold-coral':      { skillStyle: 'pill-outline',         contactStyle: 'inline-compact',  educationStyle: 'divider-list',  certificationStyle: 'simple-list' },
   'dev-terminal':    { skillStyle: 'simple-list',          contactStyle: 'inline-compact',  educationStyle: 'compact-block', certificationStyle: 'simple-list' },
-  'strategist-gold': { skillStyle: 'minimal-divider-list', contactStyle: 'icon-list',       educationStyle: 'timeline',      certificationStyle: 'simple-list' },
+  'strategist-gold': { skillStyle: 'bullet-list',          contactStyle: 'icon-list',       educationStyle: 'simple-list',   certificationStyle: 'simple-list' },
   'clean-slate':     { skillStyle: 'simple-list',          contactStyle: 'inline-compact',  educationStyle: 'simple-list',   certificationStyle: 'simple-list' },
   'designer-slate':  { skillStyle: 'simple-list',          contactStyle: 'inline-compact',  educationStyle: 'simple-list',   certificationStyle: 'simple-list' },
 };
@@ -594,6 +622,8 @@ ${text}`
         parsed = fallbackParse(text);
       }
 
+      parsed = normalizeImportedResume(mergeImportedResume(parsed, parseLabeledResume(text)), text);
+
       clearInterval(t);
       setProgress(100);
       setResumeData(safe(parsed));
@@ -606,7 +636,7 @@ ${text}`
       console.error('Generation error:', e);
       clearInterval(t);
       setProgress(100);
-      setResumeData(safe(fallbackParse(text)));
+      setResumeData(safe(normalizeImportedResume(mergeImportedResume(fallbackParse(text), parseLabeledResume(text)), text)));
       setJobDescription('');
       setCoverLetter('');
       setLinkedInSummary('');
@@ -1139,84 +1169,110 @@ ${text}`
           projectName={currentProjectName}
           projectCount={workspaceProjects.length}
         />
-        {step === 'landing' && <LandingPage onStart={handleStartFromLanding} />}
-        {step === 'upload' && (
-          <UploadPage
-            onTextExtracted={generateResume}
-            onPhotoUpload={setPhotoUrl}
-            onStructuredBuild={handleStructuredBuild}
-            initialMode={uploadStartMode}
-          />
-        )}
-        {step === 'generating' && <GeneratingPage progress={progress} />}
-        {step === 'preview' && (
-          <EditorPage
-            data={safe(resumeData)}
-            onEdit={handleEdit}
-            template={selectedTemplate}
-            setTemplate={setSelectedTemplate}
-            photo={photoUrl}
-            setPhoto={setPhotoUrl}
-            photoSettings={photoSettings}
-            setPhotoSettings={setPhotoSettings}
-            photoShape={photoShape}
-            setPhotoShape={setPhotoShape}
-            colors={colors}
-            setColors={setColors}
-            globalFont={globalFont}
-            setGlobalFont={setGlobalFont}
-            onReUpload={handleReUpload}
-            sectionOrder={sectionOrder}
-            setSectionOrder={setSectionOrder}
-            sidebarOrder={sidebarOrder}
-            setSidebarOrder={setSidebarOrder}
-            sectionLayout={sectionLayout}
-            setSectionLayout={setSectionLayout}
-            extraPages={extraPages}
-            setExtraPages={setExtraPages}
-            pageLayoutModes={pageLayoutModes}
-            setPageLayoutModes={setPageLayoutModes}
-            pageSidebarVisible={pageSidebarVisible}
-            setPageSidebarVisible={setPageSidebarVisible}
-            skillStyle={skillStyle}
-            setSkillStyle={setSkillStyle}
-            contactStyle={contactStyle}
-            setContactStyle={setContactStyle}
-            educationStyle={educationStyle}
-            setEducationStyle={setEducationStyle}
-            certificationStyle={certificationStyle}
-            setCertificationStyle={setCertificationStyle}
-            sectionLabels={sectionLabels}
-            hiddenSections={hiddenSections}
-            setSectionLabels={setSectionLabels}
-            onAIRewrite={handleAIRewrite}
-            currentProjectName={currentProjectName}
-            workspaceProjects={workspaceProjects}
-            activeProjectId={activeProjectId}
-            onSelectProject={handleSelectProject}
-            onCreateProject={handleCreateProject}
-            onDuplicateProject={handleDuplicateProject}
-            onDeleteProject={handleDeleteProject}
-            onRenameProject={handleRenameProject}
-            onExportProject={handleExportProject}
-            onImportProject={handleImportProject}
-            canUndo={historyIndex > 0}
-            canRedo={historyIndex >= 0 && historyIndex < history.length - 1}
-            onUndo={handleUndo}
-            onRedo={handleRedo}
-            jobDescription={jobDescription}
-            onJobDescriptionChange={setJobDescription}
-            atsReport={atsReport}
-            onGenerateCompanionDocs={handleGenerateCompanionDocs}
-            coverLetter={coverLetter}
-            onCoverLetterChange={setCoverLetter}
-            linkedInSummary={linkedInSummary}
-            onLinkedInSummaryChange={setLinkedInSummary}
-            companionLoading={companionLoading}
-          />
-        )}
+        <Suspense fallback={<AppShellFallback step={step} progress={progress} />}>
+          {step === 'landing' && <LandingPage onStart={handleStartFromLanding} />}
+          {step === 'upload' && (
+            <UploadPage
+              onTextExtracted={generateResume}
+              onPhotoUpload={setPhotoUrl}
+              onStructuredBuild={handleStructuredBuild}
+              initialMode={uploadStartMode}
+            />
+          )}
+          {step === 'generating' && <GeneratingPage progress={progress} />}
+          {step === 'preview' && (
+            <EditorPage
+              data={safe(resumeData)}
+              onEdit={handleEdit}
+              template={selectedTemplate}
+              setTemplate={setSelectedTemplate}
+              photo={photoUrl}
+              setPhoto={setPhotoUrl}
+              photoSettings={photoSettings}
+              setPhotoSettings={setPhotoSettings}
+              photoShape={photoShape}
+              setPhotoShape={setPhotoShape}
+              colors={colors}
+              setColors={setColors}
+              globalFont={globalFont}
+              setGlobalFont={setGlobalFont}
+              onReUpload={handleReUpload}
+              sectionOrder={sectionOrder}
+              setSectionOrder={setSectionOrder}
+              sidebarOrder={sidebarOrder}
+              setSidebarOrder={setSidebarOrder}
+              sectionLayout={sectionLayout}
+              setSectionLayout={setSectionLayout}
+              extraPages={extraPages}
+              setExtraPages={setExtraPages}
+              pageLayoutModes={pageLayoutModes}
+              setPageLayoutModes={setPageLayoutModes}
+              pageSidebarVisible={pageSidebarVisible}
+              setPageSidebarVisible={setPageSidebarVisible}
+              skillStyle={skillStyle}
+              setSkillStyle={setSkillStyle}
+              contactStyle={contactStyle}
+              setContactStyle={setContactStyle}
+              educationStyle={educationStyle}
+              setEducationStyle={setEducationStyle}
+              certificationStyle={certificationStyle}
+              setCertificationStyle={setCertificationStyle}
+              sectionLabels={sectionLabels}
+              hiddenSections={hiddenSections}
+              setSectionLabels={setSectionLabels}
+              onAIRewrite={handleAIRewrite}
+              currentProjectName={currentProjectName}
+              workspaceProjects={workspaceProjects}
+              activeProjectId={activeProjectId}
+              onSelectProject={handleSelectProject}
+              onCreateProject={handleCreateProject}
+              onDuplicateProject={handleDuplicateProject}
+              onDeleteProject={handleDeleteProject}
+              onRenameProject={handleRenameProject}
+              onExportProject={handleExportProject}
+              onImportProject={handleImportProject}
+              canUndo={historyIndex > 0}
+              canRedo={historyIndex >= 0 && historyIndex < history.length - 1}
+              onUndo={handleUndo}
+              onRedo={handleRedo}
+              jobDescription={jobDescription}
+              onJobDescriptionChange={setJobDescription}
+              atsReport={atsReport}
+              onGenerateCompanionDocs={handleGenerateCompanionDocs}
+              coverLetter={coverLetter}
+              onCoverLetterChange={setCoverLetter}
+              linkedInSummary={linkedInSummary}
+              onLinkedInSummaryChange={setLinkedInSummary}
+              companionLoading={companionLoading}
+            />
+          )}
+        </Suspense>
       </div>
     </RichTextToolbarProvider>
+  );
+}
+
+function AppShellFallback({ step, progress }) {
+  if (step === 'generating') {
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 32 }}>
+        <div style={{ width: 'min(420px, 100%)', display: 'grid', gap: 14, textAlign: 'center' }}>
+          <strong style={{ fontSize: 15, color: 'var(--c-text)' }}>Preparing your resume workspace</strong>
+          <div style={{ height: 10, borderRadius: 999, background: 'var(--c-surface-alt)', overflow: 'hidden' }}>
+            <div style={{ width: `${Math.max(progress || 8, 8)}%`, height: '100%', background: 'linear-gradient(135deg, var(--c-accent), #6ee7b7)' }} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 32 }}>
+      <div style={{ display: 'grid', gap: 12, textAlign: 'center' }}>
+        <strong style={{ fontSize: 15, color: 'var(--c-text)' }}>Loading CV Craft</strong>
+        <span style={{ fontSize: 12, color: 'var(--c-text-muted)' }}>Bringing in the next workspace surface.</span>
+      </div>
+    </div>
   );
 }
 
@@ -1350,7 +1406,490 @@ function inferCustomSectionPlacement(key, items = []) {
 }
 
 function normalizeParsedLine(line) {
-  return collapseLetterSpacedHeading(String(line || '').replace(/\u00A0/g, ' ').replace(/\s+/g, ' ').trim());
+  return collapseLetterSpacedHeading(
+    String(line || '')
+      .replace(/\u00A0/g, ' ')
+      .replace(/\*\*/g, '')
+      .replace(/[“”]/g, '"')
+      .replace(/[‘’]/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/^["'`]+|["'`]+$/g, '')
+  );
+}
+
+function _normalizeLooseList(value) {
+  return String(value || '')
+    .split(/\n|,|;|\u2022|•/)
+    .map((item) => item.replace(/^[-*]\s*/, '').trim())
+    .filter(Boolean);
+}
+
+function normalizeCompareValue(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function normalizeImportedList(value) {
+  return String(value || '')
+    .replace(/\*\*/g, '')
+    .split(/\n|,|;|\||\u2022|•/)
+    .map((item) => normalizeParsedLine(item))
+    .map((item) => item.replace(/^[-*]\s*/, '').trim())
+    .map((item) => item.replace(/^["'`]+|["'`]+$/g, '').trim())
+    .filter(Boolean);
+}
+
+function isContactLikeItem(line) {
+  const clean = normalizeParsedLine(line);
+  if (!clean) return false;
+  return /@|linkedin|github|portfolio|https?:\/\/|www\.|\+?\d[\d\s().-]{6,}|\b(?:email|mobile|phone|address|location)\b\s*[:-]/i.test(clean);
+}
+
+function extractExplicitImportDetails(text, lines = []) {
+  const source = String(text || '');
+  const pick = (regex) => source.match(regex)?.[1]?.replace(/\s+/g, ' ').trim() || '';
+  const email = pick(/(?:^|\n)\s*email\s*[:-]\s*([^\n]+)/im) || (source.match(/[\w.+-]+@[\w.-]+\.\w{2,}/)?.[0] || '');
+  const phone = pick(/(?:^|\n)\s*(?:mobile(?:\s*no\.?)?|phone|contact(?:\s*no\.?)?)\s*[:-]\s*([^\n]+)/im)
+    || (source.match(/(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{3,4}[-.\s]?\d{3,4}\d*/)?.[0] || '');
+  const address = pick(/(?:^|\n)\s*(?:address|location)\s*[:-]\s*([^\n]+)/im);
+  const linkedIn = pick(/(?:^|\n)\s*(?:linkedin|website|portfolio)\s*[:-]\s*([^\n]+)/im)
+    || (source.match(/(?:https?:\/\/[^\s]+|www\.[^\s]+|linkedin\.com\/in\/[^\s]+)/i)?.[0] || '');
+  const headerName = lines.find((line) => {
+    const clean = normalizeParsedLine(line);
+    return clean &&
+      clean.length < 60 &&
+      !isContactLikeItem(clean) &&
+      !/^(career objective|profile summary|work experience|skills summary|academic qualifications|personal details|declaration)$/i.test(clean);
+  }) || '';
+  return { email, phone, address, linkedIn, headerName };
+}
+
+function dedupeStrings(items = []) {
+  const seen = new Set();
+  const out = [];
+  for (const item of items) {
+    const clean = normalizeParsedLine(item);
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(clean);
+  }
+  return out;
+}
+
+function parseLabeledResume(text) {
+  const source = String(text || '');
+  if (!source) return null;
+
+  const hasStrongSignals =
+    /work experience/i.test(source) &&
+    /company name/i.test(source) &&
+    /(designation|role and responsibility|personal details|academic qualifications)/i.test(source);
+
+  if (!hasStrongSignals) return null;
+
+  const lines = source
+    .split('\n')
+    .map((line) => normalizeParsedLine(line.replace(/\t+/g, ' ')))
+    .filter(Boolean);
+
+  const extractBlock = (startLabel, endLabels = []) => {
+    const startIndex = lines.findIndex((line) => new RegExp(`^${startLabel}$`, 'i').test(line));
+    if (startIndex === -1) return [];
+    let endIndex = lines.length;
+    for (let index = startIndex + 1; index < lines.length; index += 1) {
+      if (endLabels.some((label) => new RegExp(`^${label}$`, 'i').test(lines[index]))) {
+        endIndex = index;
+        break;
+      }
+    }
+    return lines.slice(startIndex + 1, endIndex).filter(Boolean);
+  };
+
+  const readLabeledValue = (blockLines, label) => {
+    const matcher = new RegExp(`^${label}\\s*:?\\s*(.+)$`, 'i');
+    for (let index = 0; index < blockLines.length; index += 1) {
+      const line = blockLines[index];
+      const match = line.match(matcher);
+      if (!match) continue;
+      let value = match[1].trim();
+      const next = blockLines[index + 1];
+      if ((!value || /^\(+[A-Za-z]{3,9}\s+\d{4}/.test(next || '')) && next && !/^[A-Z][A-Za-z ]+\s*:/.test(next)) {
+        value = [value, next].filter(Boolean).join(' ').trim();
+      }
+      return value.replace(/\s+/g, ' ').trim();
+    }
+    return '';
+  };
+
+  const summaryBlock = extractBlock('Profile Summary', ['Skills Summary', 'Work Experience']);
+  const skillsBlock = extractBlock('Skills Summary', ['Work Experience']);
+  const strengthBlock = extractBlock('Personal Strength', ['Personal Details', 'Declaration']);
+  const personalBlock = extractBlock('Personal Details', ['Declaration']);
+  const declarationBlock = extractBlock('Declaration', []);
+  const educationBlock = extractBlock('Academic Qualifications', ['Personal Strength', 'Personal Details', 'Declaration']);
+
+  const workStart = lines.findIndex((line) => /^Work Experience$/i.test(line));
+  const workEnd = lines.findIndex((line, index) => index > workStart && /^Academic Qualifications$/i.test(line));
+  const workLines = workStart !== -1 ? lines.slice(workStart + 1, workEnd === -1 ? lines.length : workEnd) : [];
+
+  const companyMarkers = [];
+  for (let index = 0; index < workLines.length; index += 1) {
+    if (/^Company\s+\d+\s*:-$/i.test(workLines[index])) companyMarkers.push(index);
+  }
+
+  const experience = companyMarkers.map((startIndex, markerIndex) => {
+    const endIndex = companyMarkers[markerIndex + 1] ?? workLines.length;
+    const block = workLines.slice(startIndex, endIndex).filter(Boolean);
+    const clientName = readLabeledValue(block, 'Client Name');
+    const supportingClient = readLabeledValue(block, 'Supporting Client');
+    const companyName = readLabeledValue(block, 'Company Name').replace(/[()]/g, match => match);
+    const designation = readLabeledValue(block, 'Designation');
+    const roleLabel = readLabeledValue(block, 'Role');
+    const tools = readLabeledValue(block, 'Tools');
+    const periodMatch = block.join(' ').match(/\(\s*([A-Za-z]{3,9}\s+\d{4}\s*-\s*(?:[A-Za-z]{3,9}\s+\d{4}|Continuing|Present|Current))\s*\)/i);
+    const period = periodMatch?.[1]?.replace(/Continuing/i, 'Present') || 'Start - End';
+
+    const bulletStart = block.findIndex((line) => /^Role And Responsibility\s*:-$/i.test(line));
+    const rawBullets = bulletStart !== -1 ? block.slice(bulletStart + 1) : [];
+    const bullets = rawBullets
+      .map((line) => line.replace(/^[•\-*]\s*/, '').trim())
+      .filter((line) => line && !/^Company\s+\d+\s*:-$/i.test(line));
+
+    const prefaceBullets = [];
+    if (clientName) prefaceBullets.push(`Client: ${clientName}`);
+    if (supportingClient) prefaceBullets.push(`Supporting Client: ${supportingClient}`);
+    if (tools) prefaceBullets.push(`Tools: ${tools}`);
+
+    return {
+      role: designation || roleLabel || 'Professional Experience',
+      company: clientName || companyName || 'Company Name',
+      period,
+      client: companyName && clientName && normalizeCompareValue(companyName) !== normalizeCompareValue(clientName) ? companyName : '',
+      bullets: dedupeStrings([...prefaceBullets, ...bullets]),
+      sections: [],
+    };
+  }).filter((item) => item.role || item.company || item.bullets.length);
+
+  const education = [];
+  for (const line of educationBlock) {
+    const clean = normalizeParsedLine(line);
+    if (!clean) continue;
+    const yearMatch = clean.match(/\b(20\d{2}|19\d{2})\b/);
+    if (/^(b\.?tech|b\.? tech|12th|10th)/i.test(clean)) {
+      education.push({
+        degree: clean.replace(/\s+-\s+.*$/i, '').trim(),
+        school: clean.replace(/^(b\.?tech|b\.? tech|12th|10th)\s*-\s*/i, '').trim(),
+        year: yearMatch?.[1] || '',
+      });
+    } else if (education.length && !education[education.length - 1].school.includes(clean)) {
+      education[education.length - 1].school = `${education[education.length - 1].school} ${clean}`.trim();
+    }
+  }
+
+  const certifications = [];
+  const customSections = [];
+
+  if (strengthBlock.length) {
+    customSections.push({
+      id: `cs_strengths_${Math.random().toString(36).slice(2, 8)}`,
+      title: 'Strengths',
+      placement: 'side',
+      items: dedupeStrings(strengthBlock),
+    });
+  }
+
+  const personalItems = [];
+  const languageItems = [];
+  const hobbyItems = [];
+  for (const line of personalBlock) {
+    const clean = normalizeParsedLine(line);
+    if (!clean) continue;
+    if (/^(?:email)\s*:/i.test(clean)) continue;
+    if (/^(?:mobile(?:\s*no\.?)?|phone|contact(?:\s*no\.?)?)\s*:/i.test(clean)) continue;
+    if (/^(?:address|location)\s*:/i.test(clean)) continue;
+    if (/^languages?\s*known\s*:/i.test(clean)) {
+      languageItems.push(...normalizeImportedList(clean.replace(/^languages?\s*known\s*:/i, '')));
+      continue;
+    }
+    if (/^(?:interests?|hobbies)\s*:/i.test(clean)) {
+      hobbyItems.push(...normalizeImportedList(clean.replace(/^(?:interests?|hobbies)\s*:/i, '')));
+      continue;
+    }
+    personalItems.push(clean);
+  }
+  if (personalItems.length) {
+    customSections.push({
+      id: `cs_personal_${Math.random().toString(36).slice(2, 8)}`,
+      title: 'Personal Details',
+      placement: 'side',
+      items: dedupeStrings(personalItems),
+    });
+  }
+  if (languageItems.length) {
+    customSections.push({
+      id: `cs_languages_${Math.random().toString(36).slice(2, 8)}`,
+      title: 'Languages',
+      placement: 'side',
+      items: dedupeStrings(languageItems),
+    });
+  }
+  if (hobbyItems.length) {
+    customSections.push({
+      id: `cs_hobbies_${Math.random().toString(36).slice(2, 8)}`,
+      title: 'Hobbies',
+      placement: 'side',
+      items: dedupeStrings(hobbyItems),
+    });
+  }
+  if (declarationBlock.length) {
+    const declarationItems = declarationBlock.filter((line) => !/^date\s*:/i.test(line) && normalizeCompareValue(line) !== normalizeCompareValue(lines[0]));
+    if (declarationItems.length) {
+      customSections.push({
+        id: `cs_declaration_${Math.random().toString(36).slice(2, 8)}`,
+        title: 'Declaration',
+        placement: 'side',
+        items: dedupeStrings(declarationItems),
+      });
+    }
+  }
+
+  return {
+    name: lines[0] || '',
+    email: readLabeledValue(lines, 'Email'),
+    phone: readLabeledValue(lines, 'Mobile No') || readLabeledValue(lines, 'Phone'),
+    summary: summaryBlock.join(' ').trim(),
+    skills: dedupeStrings(skillsBlock),
+    experience,
+    education,
+    certifications,
+    customSections,
+  };
+}
+
+function mergeImportedResume(baseParsed, structuredParsed) {
+  if (!structuredParsed) return baseParsed;
+  const merged = { ...(baseParsed || {}) };
+  const replaceIfBetter = (key) => {
+    const structuredValue = structuredParsed[key];
+    if (Array.isArray(structuredValue)) {
+      if (structuredValue.length) merged[key] = structuredValue;
+      return;
+    }
+    if (typeof structuredValue === 'string' && structuredValue.trim()) {
+      merged[key] = structuredValue.trim();
+    }
+  };
+
+  ['name', 'title', 'email', 'phone', 'location', 'linkedIn', 'summary'].forEach(replaceIfBetter);
+  ['skills', 'education', 'experience', 'certifications'].forEach(replaceIfBetter);
+
+  const combinedCustomSections = [
+    ...(Array.isArray(structuredParsed.customSections) ? structuredParsed.customSections : []),
+    ...(Array.isArray(baseParsed?.customSections) ? baseParsed.customSections : []),
+  ];
+  if (combinedCustomSections.length) {
+    merged.customSections = combinedCustomSections;
+  }
+  return merged;
+}
+
+function normalizeImportedResume(parsed, text = '') {
+  const next = (parsed && typeof parsed === 'object') ? { ...parsed } : {};
+  const lines = mergeBrokenHeadingLines(String(text || '').split('\n').map(normalizeParsedLine).filter(Boolean));
+  const explicit = extractExplicitImportDetails(text, lines);
+  const normalizedNameKey = normalizeCompareValue(next.name || explicit.headerName || '');
+  const declarationLikePattern = /^(?:date|place|signature|signed|declaration)\s*[:-]/i;
+  const personalDetailPattern = /^(?:date of birth|dob|gender|marital status|blood group|nationality)\s*[:-]/i;
+
+  next.name = normalizeParsedLine(next.name || explicit.headerName || 'Your Name');
+  next.title = normalizeParsedLine(next.title || 'Professional');
+  next.email = normalizeParsedLine(next.email || explicit.email || '');
+  next.phone = normalizeParsedLine(next.phone || explicit.phone || '');
+  next.location = normalizeParsedLine(next.location || explicit.address || '');
+  next.linkedIn = normalizeParsedLine(next.linkedIn || explicit.linkedIn || '');
+  next.summary = String(next.summary || '')
+    .split('\n')
+    .map(normalizeParsedLine)
+    .filter((line) => line && !isContactLikeItem(line) && normalizeCompareValue(line) !== normalizeCompareValue(next.name))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  next.skills = dedupeStrings(
+    (Array.isArray(next.skills) ? next.skills : [])
+      .flatMap((item) => normalizeImportedList(item))
+      .map((item) => item.replace(/^skills?\s*[:-]\s*/i, '').trim())
+      .filter(Boolean)
+  );
+
+  const personalItems = [];
+  const languageItems = [];
+  const hobbyItems = [];
+  const cleanedSections = [];
+
+  const pushPersonal = (value) => {
+    const clean = normalizeParsedLine(value);
+    if (clean) personalItems.push(clean);
+  };
+
+  const sectionLooksLikeRepeatedName = (title) => {
+    const titleKey = normalizeCompareValue(title);
+    if (!titleKey || !normalizedNameKey) return false;
+    return titleKey === normalizedNameKey || titleKey.includes(normalizedNameKey) || normalizedNameKey.includes(titleKey);
+  };
+
+  for (const section of Array.isArray(next.customSections) ? next.customSections : []) {
+    const title = normalizeParsedLine(section?.title || '');
+    const isNameSection = !!title && sectionLooksLikeRepeatedName(title);
+    const items = dedupeStrings(Array.isArray(section?.items) ? section.items : []);
+    if (!title && !items.length) continue;
+
+    const leftover = [];
+    for (const item of items) {
+      const clean = normalizeParsedLine(item);
+      if (!clean) continue;
+
+      const emailMatch = clean.match(/[\w.+-]+@[\w.-]+\.\w{2,}/);
+      const phoneMatch = clean.match(/(?:\+?\d{1,3}[-.\s]?)?(?:\(?\d{2,4}\)?[-.\s]?)?\d{3,4}[-.\s]?\d{3,4}\d*/);
+
+      if (emailMatch && !next.email) {
+        next.email = emailMatch[0];
+        continue;
+      }
+      if (phoneMatch && !next.phone && /(mobile|phone|contact|\+?\d)/i.test(clean)) {
+        next.phone = phoneMatch[0];
+        continue;
+      }
+      if (/^(?:email)\s*[:-]/i.test(clean)) {
+        next.email = clean.replace(/^(?:email)\s*[:-]\s*/i, '').trim() || next.email;
+        continue;
+      }
+      if (/^(?:mobile(?:\s*no\.?)?|phone|contact(?:\s*no\.?)?)\s*[:-]/i.test(clean)) {
+        next.phone = clean.replace(/^(?:mobile(?:\s*no\.?)?|phone|contact(?:\s*no\.?)?)\s*[:-]\s*/i, '').trim() || next.phone;
+        continue;
+      }
+      if (/^(?:address|location)\s*[:-]/i.test(clean)) {
+        const locationValue = clean.replace(/^(?:address|location)\s*[:-]\s*/i, '').trim();
+        if (!next.location) next.location = locationValue;
+        else pushPersonal(clean);
+        continue;
+      }
+      if (/^(?:linkedin|website|portfolio)\s*[:-]/i.test(clean)) {
+        const linkValue = clean.replace(/^(?:linkedin|website|portfolio)\s*[:-]\s*/i, '').trim();
+        if (!next.linkedIn) next.linkedIn = linkValue;
+        else pushPersonal(clean);
+        continue;
+      }
+      if (/^languages?\s*(?:known)?\s*[:-]/i.test(clean)) {
+        languageItems.push(...normalizeImportedList(clean.replace(/^languages?\s*(?:known)?\s*[:-]\s*/i, '')));
+        continue;
+      }
+      if (/^(?:interests?|hobbies)\s*[:-]/i.test(clean)) {
+        hobbyItems.push(...normalizeImportedList(clean.replace(/^(?:interests?|hobbies)\s*[:-]\s*/i, '')));
+        continue;
+      }
+      if (personalDetailPattern.test(clean)) {
+        pushPersonal(clean);
+        continue;
+      }
+      if (declarationLikePattern.test(clean) && (isNameSection || /^declaration$/i.test(title))) {
+        continue;
+      }
+
+      leftover.push(clean);
+    }
+
+    if (isNameSection && leftover.every((item) => isContactLikeItem(item) || personalDetailPattern.test(item) || declarationLikePattern.test(item))) {
+      leftover.forEach(pushPersonal);
+      continue;
+    }
+
+    if (/^(contact details|personal details|contact|personal information)$/i.test(title)) {
+      leftover.forEach(pushPersonal);
+      continue;
+    }
+
+    if (/^declaration$/i.test(title)) {
+      const declarationItems = leftover.filter((item) => !declarationLikePattern.test(item) && normalizeCompareValue(item) !== normalizedNameKey);
+      if (!declarationItems.length) continue;
+      cleanedSections.push({
+        ...section,
+        title: title || section.title,
+        placement: section?.placement === 'main' ? 'main' : 'side',
+        items: declarationItems,
+      });
+      continue;
+    }
+
+    if (/^languages?$/i.test(title)) {
+      languageItems.push(...leftover);
+      continue;
+    }
+
+    if (/^(hobbies|interests)$/i.test(title)) {
+      hobbyItems.push(...leftover);
+      continue;
+    }
+
+    if (!leftover.length && isNameSection) continue;
+
+    cleanedSections.push({
+      ...section,
+      title: title || section.title,
+      placement: section?.placement === 'main' ? 'main' : 'side',
+      items: leftover,
+    });
+  }
+
+  next.email = normalizeParsedLine(next.email || explicit.email || '');
+  next.phone = normalizeParsedLine(next.phone || explicit.phone || '');
+  next.location = normalizeParsedLine(next.location || explicit.address || '');
+  next.linkedIn = normalizeParsedLine(next.linkedIn || explicit.linkedIn || '');
+  if (personalItems.length) {
+    cleanedSections.push({
+      id: `cs_personal_details_${Math.random().toString(36).slice(2, 8)}`,
+      title: 'Personal Details',
+      placement: 'side',
+      items: dedupeStrings(personalItems),
+    });
+  }
+  if (languageItems.length) {
+    cleanedSections.push({
+      id: `cs_languages_${Math.random().toString(36).slice(2, 8)}`,
+      title: 'Languages',
+      placement: 'side',
+      items: dedupeStrings(languageItems),
+    });
+  }
+  if (hobbyItems.length) {
+    cleanedSections.push({
+      id: `cs_hobbies_${Math.random().toString(36).slice(2, 8)}`,
+      title: 'Hobbies',
+      placement: 'side',
+      items: dedupeStrings(hobbyItems),
+    });
+  }
+
+  const finalSections = [];
+  const sectionIndex = new Map();
+  for (const section of cleanedSections) {
+    if (!section?.title || !Array.isArray(section.items) || !section.items.length) continue;
+    const key = normalizeCompareValue(section.title);
+    if (sectionIndex.has(key)) {
+      const existing = finalSections[sectionIndex.get(key)];
+      existing.items = dedupeStrings([...(existing.items || []), ...section.items]);
+      continue;
+    }
+    sectionIndex.set(key, finalSections.length);
+    finalSections.push({ ...section, items: dedupeStrings(section.items) });
+  }
+
+  next.customSections = finalSections;
+  if (!next.summary) {
+    next.summary = 'Professional with relevant experience. Edit this summary to reflect your background.';
+  }
+  return next;
 }
 
 function mergeBrokenHeadingLines(lines) {

@@ -1,4 +1,4 @@
-import { CERT_VARIANTS } from '../components/CertificationsRenderer';
+import { CERT_VARIANTS } from '../components/rendererVariants';
 
 const LABELS = {
   'simple-list':  'Bullet List',

@@ -133,31 +133,31 @@ export default function ExecutiveNavy({ data, photo, photoSettings, onPhotoSetti
               </DraggableSection>
             ))}
           </SortableContext>
-          <div style={{ marginTop: 8 }}>
+          <div style={{ marginTop: 0 }}>
             <AddButton onClick={() => onEdit('exp_add', {})} label="experience" />
           </div>
         </div>
       </DraggableSection>
     );
     if (sectionId === 'skills') return (
-      <DraggableSection key={sectionId} id={sectionId}>
-        <div style={{ marginTop: mainSectionLift, marginBottom: sectionGap }}>
+      <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+        <div style={{ marginBottom: sectionGap }}>
           <EditableText value={L.skills} onChange={v => onEdit('section_rename', { sectionId: 'skills', v })} tag="h2" className="text-[11px] font-bold uppercase tracking-wider" style={{ color: c.heading, marginBottom: 2 }} />
           <SkillsRenderer skills={d.skills} onEdit={onEdit} variant={skillStyle || 'pill-outline'} accentColor={accent} textColor={c.heading} fontSize={fontSize} fontFamily={fontFamily} />
         </div>
       </DraggableSection>
     );
     if (sectionId === 'education') return (
-      <DraggableSection key={sectionId} id={sectionId}>
-        <div style={{ marginTop: mainSectionLift, marginBottom: sectionGap }}>
+      <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+        <div style={{ marginBottom: sectionGap }}>
           <EditableText value={L.education} onChange={v => onEdit('section_rename', { sectionId: 'education', v })} tag="h2" className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: c.heading }} />
           <EducationRenderer education={d.education} onEdit={onEdit} variant={educationStyle || 'simple-list'} accentColor={accent} headingColor={c.heading} textColor={c.text} fontSize={fontSize} fontFamily={fontFamily} />
         </div>
       </DraggableSection>
     );
     if (sectionId === 'certifications') return (
-      <DraggableSection key={sectionId} id={sectionId}>
-        <div style={{ marginTop: mainSectionLift, marginBottom: sectionGap }}>
+      <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+        <div style={{ marginBottom: sectionGap }}>
           <EditableText value={L.certifications} onChange={v => onEdit('section_rename', { sectionId: 'certifications', v })} tag="h2" className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: c.heading }} />
           <CertificationsRenderer certifications={d.certifications} onEdit={onEdit} variant={certificationStyle || 'simple-list'} accentColor={accent} textColor={c.text} fontSize={fontSize} fontFamily={fontFamily} />
         </div>
@@ -165,8 +165,8 @@ export default function ExecutiveNavy({ data, photo, photoSettings, onPhotoSetti
     );
     const csMain = findCS(sectionId);
     if (csMain) return (
-      <DraggableSection key={sectionId} id={sectionId}>
-        <div style={{ marginTop: mainSectionLift }}>
+      <DraggableSection key={sectionId} id={sectionId} style={{ marginTop: mainSectionLift }}>
+        <div>
           <MainSection section={csMain} onEdit={onEdit} headingColor={c.heading} bodyColor={c.text} accentColor={accent} />
         </div>
       </DraggableSection>
@@ -244,7 +244,7 @@ export default function ExecutiveNavy({ data, photo, photoSettings, onPhotoSetti
       {/* ===== MAIN AREA ===== */}
       <DroppableColumn
         id="column-main"
-        style={{ flex: 1, padding: '10px 24px 12px 24px', background: c.background }}
+        style={{ flex: 1, padding: '2px 24px 12px 24px', background: c.background }}
       >
         <div style={{ marginBottom: 1 }}>
           <EditableText value={d.name} onChange={v => onEdit('name', { v })} tag="h1" className="leading-tight"

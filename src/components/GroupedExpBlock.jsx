@@ -56,7 +56,7 @@ export default function GroupedExpBlock({
   );
 
   return (
-    <div className="group/exp" style={{ marginBottom: 10 }}>
+    <div className="group/exp" style={{ marginBottom: 4 }}>
       <div className="flex justify-between items-baseline">
         <EditableText
           value={exp.role}
@@ -93,7 +93,7 @@ export default function GroupedExpBlock({
       {groupedSections.length > 0 ? (
         <div style={{ marginTop: 4 }}>
           {groupedSections.map((section, sectionIndex) => (
-            <div key={sectionIndex} className="group/item" style={{ marginBottom: 8 }}>
+            <div key={sectionIndex} className="group/item" style={{ marginBottom: 5 }}>
               <EditableText
                 value={section.heading}
                 onChange={(v) => onEdit('exp_group_heading', { i: idx, j: sectionIndex, v })}

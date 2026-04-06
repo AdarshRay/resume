@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { sanitizeRichText } from '../utils/richText';
+import { RichTextToolbarContext } from './richTextToolbarContextValue';
 
 const FONT_OPTIONS = [
   { label: 'Outfit', value: 'Outfit, sans-serif' },
@@ -10,6 +11,7 @@ const FONT_OPTIONS = [
 ];
 
 const COLOR_OPTIONS = ['#1f2937', '#0f766e', '#2563eb', '#7c3aed', '#dc2626', '#c9a84c'];
+const MAX_FONT_SIZE = 72;
 const BULLET_OPTIONS = [
   { label: 'Auto', value: 'auto' },
   { label: 'Dot', value: '•' },
@@ -22,8 +24,6 @@ const BULLET_OPTIONS = [
 ];
 
 const BULLET_PATTERN = /^([-*•◦▸—✓>])\s+/;
-
-const RichTextToolbarContext = createContext(null);
 
 function findBulletGlyph(element) {
   const row = element?.closest?.('li, .group\\/item, .group\\/exp, .group\\/section') || element?.parentElement;
@@ -306,14 +306,14 @@ export function RichTextToolbarProvider({
   }, [applyInlineStyle]);
 
   const nudgeFontSize = useCallback((direction) => {
-    const nextSize = Math.max(8, Math.min(30, (state.fontSize || 14) + direction));
+    const nextSize = Math.max(8, Math.min(MAX_FONT_SIZE, (state.fontSize || 14) + direction));
     applyInlineStyle({ fontSize: `${nextSize}px` });
   }, [applyInlineStyle, state.fontSize]);
 
   const applyExactFontSize = useCallback((nextSize) => {
     const parsed = Number(nextSize);
     if (!Number.isFinite(parsed)) return;
-    const clamped = Math.max(8, Math.min(30, parsed));
+    const clamped = Math.max(8, Math.min(MAX_FONT_SIZE, parsed));
     applyInlineStyle({ fontSize: `${clamped}px` });
   }, [applyInlineStyle]);
 
@@ -332,7 +332,9 @@ export function RichTextToolbarProvider({
           return `${glyph} ${line.replace(/^\s+/, '')}`;
         })
         .join('\n');
-      activeEditable.innerHTML = sanitizeRichText(nextText, { multiline: true });
+      const nextMarkup = sanitizeRichText(nextText, { multiline: true });
+      activeEditable.setAttribute('data-pending-richtext', nextMarkup);
+      activeEditable.dispatchEvent(new CustomEvent('richtext-replace', { bubbles: true }));
       activeEditable.focus();
       setState((prev) => ({ ...prev, bulletGlyph: glyph }));
       refreshState();
@@ -418,8 +420,4 @@ export function RichTextToolbarProvider({
       {children}
     </RichTextToolbarContext.Provider>
   );
-}
-
-export function useRichTextToolbar() {
-  return useContext(RichTextToolbarContext);
 }

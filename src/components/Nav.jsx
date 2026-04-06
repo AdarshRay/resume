@@ -6,7 +6,7 @@ const TEMPLATE_NAMES = {
   'executive-navy': 'Executive Navy',
   'bold-coral': 'Bold Coral',
   'dev-terminal': 'Dev Terminal',
-  'strategist-gold': 'Strategist Gold',
+  'strategist-gold': 'Portrait Arc',
   'clean-slate': 'Clean Slate',
 };
 

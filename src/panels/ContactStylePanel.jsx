@@ -1,4 +1,4 @@
-import { CONTACT_VARIANTS } from '../components/ContactRenderer';
+import { CONTACT_VARIANTS } from '../components/rendererVariants';
 
 const LABELS = {
   'simple-lines':   'Simple',

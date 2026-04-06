@@ -3,6 +3,7 @@ import AddButton from './AddButton';
 import DeleteButton from './DeleteButton';
 import { bulletBlockValue, parseBulletBlock } from '../utils/bulletBlocks';
 import { syncIndexedList } from '../utils/blockListEditing';
+import { CERT_VARIANTS } from './rendererVariants';
 
 const VARIANTS = {
   'simple-list': SimpleList,
@@ -10,8 +11,6 @@ const VARIANTS = {
   'check-list': CheckList,
   'compact-rows': CompactRows,
 };
-
-export const CERT_VARIANTS = Object.keys(VARIANTS);
 
 export default function CertificationsRenderer({
   certifications = [],

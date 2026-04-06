@@ -34,7 +34,7 @@ export default function CleanSlate({ data, colors = {}, globalFont = {}, onEdit,
   const summaryLineHeight = 1.72;
 
   return (
-    <div style={{ width: '100%', minHeight: '100%', fontFamily, fontSize: `${baseFontSize}px`, background: bgColor, padding: '38px 38px 30px 38px', color: textColor }}>
+    <div style={{ width: '100%', minHeight: '100%', fontFamily, fontSize: `${baseFontSize}px`, background: bgColor, padding: '20px 38px 30px 38px', color: textColor }}>
       {/* ===== CENTERED HEADER ===== */}
       <div style={{ textAlign: 'center', marginBottom: sectionGap }}>
         <EditableText

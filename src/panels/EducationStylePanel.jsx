@@ -1,4 +1,4 @@
-import { EDUCATION_VARIANTS } from '../components/EducationRenderer';
+import { EDUCATION_VARIANTS } from '../components/rendererVariants';
 
 const LABELS = {
   'simple-list':   'Simple',
