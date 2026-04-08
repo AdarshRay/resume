@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { DndContext, closestCenter, pointerWithin, PointerSensor, useSensor, useSensors, DragOverlay, MouseSensor, TouchSensor } from '@dnd-kit/core';
 import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import A4Wrapper from '../components/A4Wrapper';
@@ -22,6 +23,7 @@ import MainSection from '../components/MainSection';
 import generatePdf from '../utils/generatePdf';
 import { isStructuredProjectSection } from '../utils/projectSections';
 import { SectionActionsContext } from '../components/SectionActionsContext';
+import { CanvasEditorContext } from '../components/CanvasEditorContext';
 import { getRewriteModeDescription, getRewriteModeLabel } from '../utils/aiConfig';
 import { bulletBlockValue, parseBulletBlock } from '../utils/bulletBlocks';
 
@@ -173,6 +175,7 @@ export default function EditorPage({
   sectionOrder, setSectionOrder,
   sidebarOrder, setSidebarOrder,
   sectionLayout, setSectionLayout,
+  canvasPositions, setCanvasPositions,
   extraPages, setExtraPages,
   pageLayoutModes, setPageLayoutModes,
   pageSidebarVisible, setPageSidebarVisible,
@@ -213,7 +216,12 @@ export default function EditorPage({
   const [downloading, setDownloading] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(true);
   const [projectNameDraft, setProjectNameDraft] = useState(currentProjectName || '');
+  const [selectedCanvasItemId, setSelectedCanvasItemId] = useState(null);
+  const [canvasDragOverlay, setCanvasDragOverlay] = useState(null);
   const importInputRef = useRef(null);
+  const [workspaceToolOpen, setWorkspaceToolOpen] = useState(false);
+  const [isEditingInput, setIsEditingInput] = useState(false);
+  const [workspaceClockNow, setWorkspaceClockNow] = useState(() => new Date());
   const handleRemoveSection = useCallback((sectionId) => {
     if (typeof sectionId !== 'string') return;
     if (sectionId.startsWith('cs_')) {
@@ -226,6 +234,74 @@ export default function EditorPage({
   useEffect(() => {
     setProjectNameDraft(currentProjectName || '');
   }, [currentProjectName]);
+
+  useEffect(() => {
+    let timer = null;
+
+    const tick = () => {
+      setWorkspaceClockNow(new Date());
+      const now = Date.now();
+      const delay = 1000 - (now % 1000) || 1000;
+      timer = window.setTimeout(tick, delay);
+    };
+
+    const syncClock = () => {
+      if (timer) window.clearTimeout(timer);
+      tick();
+    };
+
+    syncClock();
+    window.addEventListener('focus', syncClock);
+    window.addEventListener('pageshow', syncClock);
+    document.addEventListener('visibilitychange', syncClock);
+
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      window.removeEventListener('focus', syncClock);
+      window.removeEventListener('pageshow', syncClock);
+      document.removeEventListener('visibilitychange', syncClock);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
+    const isEditableTarget = (node) => {
+      if (!(node instanceof HTMLElement)) return false;
+      if (node.isContentEditable || node.closest('[contenteditable="true"]')) return true;
+      return Boolean(node.closest('input, textarea, select'));
+    };
+
+    const syncEditingState = () => {
+      setIsEditingInput(isEditableTarget(document.activeElement));
+    };
+
+    syncEditingState();
+    document.addEventListener('focusin', syncEditingState);
+    document.addEventListener('focusout', syncEditingState);
+
+    return () => {
+      document.removeEventListener('focusin', syncEditingState);
+      document.removeEventListener('focusout', syncEditingState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCanvasItemId || typeof document === 'undefined') return undefined;
+
+    const handlePointerDown = (event) => {
+      const target = event.target;
+      if (!target) return;
+      if (target.closest?.('[data-section-id]')) return;
+      setSelectedCanvasItemId(null);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+    };
+  }, [selectedCanvasItemId]);
+
   const resumeQuality = useMemo(() => {
     const skillsCount = data?.skills?.filter(Boolean).length || 0;
     const experienceCount = data?.experience?.length || 0;
@@ -537,6 +613,71 @@ export default function EditorPage({
       });
     }
   }, [ensurePage, setPageLayoutModes, setPageSidebarVisible]);
+
+  const updateCanvasItemPage = useCallback((itemId, pageNum) => {
+    if (!itemId) return;
+    ensurePage(pageNum);
+
+    if (typeof itemId === 'string' && itemId.startsWith('exp-')) {
+      const expId = itemId.slice(4);
+      setExpPageMap((prev) => (
+        (prev?.[expId] || 1) === pageNum
+          ? prev
+          : { ...(prev || {}), [expId]: pageNum }
+      ));
+      return;
+    }
+
+    setSectionLayout((prev) => {
+      const current = prev?.[itemId] || { page: 1, column: 'main', order: 0 };
+      if ((current.page || 1) === pageNum) return prev;
+      return {
+        ...(prev || {}),
+        [itemId]: {
+          ...current,
+          page: pageNum,
+        },
+      };
+    });
+  }, [ensurePage, setSectionLayout]);
+
+  const canvasContextValue = useMemo(() => ({
+    manualPlacementEnabled: true,
+    selectedItemId: selectedCanvasItemId,
+    selectItem: setSelectedCanvasItemId,
+    getItemLayout: (itemId) => canvasPositions?.[itemId] || null,
+    setItemLayout: (itemId, nextLayout) => {
+      if (!itemId) return;
+      const normalized = {
+        page: Number(nextLayout?.page || 1),
+        left: Math.round(nextLayout?.left || 0),
+        top: Math.round(nextLayout?.top || 0),
+        width: Math.round(nextLayout?.width || 0),
+        height: Math.round(nextLayout?.height || 0),
+      };
+
+      updateCanvasItemPage(itemId, normalized.page);
+      setCanvasPositions((prev) => {
+        const current = prev?.[itemId] || null;
+        if (
+          current &&
+          current.page === normalized.page &&
+          current.left === normalized.left &&
+          current.top === normalized.top &&
+          current.width === normalized.width &&
+          current.height === normalized.height
+        ) {
+          return prev;
+        }
+        return {
+          ...(prev || {}),
+          [itemId]: normalized,
+        };
+      });
+    },
+    clearSelection: () => setSelectedCanvasItemId(null),
+    setDragOverlay: setCanvasDragOverlay,
+  }), [canvasPositions, selectedCanvasItemId, setCanvasPositions, updateCanvasItemPage]);
 
   // ── Column-aware auto-pagination: measure each column independently, cascade across pages ──
   const lastPagSigRef = useRef('');
@@ -2482,7 +2623,9 @@ export default function EditorPage({
       {/* ===== LEFT PANEL (redesigned) ===== */}
       <aside className="editor-sidebar">
         <div className="sidebar-inner">
-          <div className="editor-ai-card" style={{ gap: 12 }}>
+          <WorkspaceClockCard now={workspaceClockNow} />
+
+          <div className="editor-ai-card workspace-project-card" style={{ gap: 12 }}>
             <div className="editor-ai-card-head">
               <div>
                 <span className="editor-score-eyebrow">Workspace</span>
@@ -2528,17 +2671,9 @@ export default function EditorPage({
                 ))}
               </select>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <button type="button" className="editor-ai-btn" onClick={onCreateProject}>New</button>
-              <button type="button" className="editor-ai-btn" onClick={onDuplicateProject}>Duplicate</button>
-              <button type="button" className="editor-ai-btn" onClick={onExportProject}>Export</button>
-              <button type="button" className="editor-ai-btn" onClick={handleImportClick}>Import</button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-              <button type="button" className="editor-ai-btn" onClick={onUndo} disabled={!canUndo}>Undo</button>
-              <button type="button" className="editor-ai-btn" onClick={onRedo} disabled={!canRedo}>Redo</button>
-              <button type="button" className="editor-ai-btn" onClick={onDeleteProject}>Delete</button>
-            </div>
+            <p className="workspace-card-note">
+              Hover the floating orb beside the canvas for project actions. Undo and redo stay close while you edit.
+            </p>
             <input
               ref={importInputRef}
               type="file"
@@ -2803,6 +2938,7 @@ export default function EditorPage({
 
       {/* ===== RESUME PREVIEW ===== */}
       <SectionActionsContext.Provider value={{ removeSection: handleRemoveSection }}>
+      <CanvasEditorContext.Provider value={canvasContextValue}>
       <DndContext
         sensors={sensors}
         collisionDetection={scopedCollision}
@@ -2812,6 +2948,20 @@ export default function EditorPage({
         onDragCancel={handleDragCancel}
       >
           <div className="editor-canvas-pane">
+            <WorkspaceQuickTool
+              open={workspaceToolOpen}
+              setOpen={setWorkspaceToolOpen}
+              isEditing={isEditingInput}
+              canUndo={canUndo}
+              canRedo={canRedo}
+              onUndo={onUndo}
+              onRedo={onRedo}
+              onCreateProject={onCreateProject}
+              onDuplicateProject={onDuplicateProject}
+              onExportProject={onExportProject}
+              onImportProject={handleImportClick}
+              onDeleteProject={onDeleteProject}
+            />
             <A4Wrapper
               extraPages={extraPages}
               onAddPage={handleAddPage}
@@ -2820,6 +2970,7 @@ export default function EditorPage({
               setPageLayoutModes={setPageLayoutModes}
               pageSidebarVisible={pageSidebarVisible}
               setPageSidebarVisible={setPageSidebarVisible}
+              onPageBackgroundPointerDown={() => setSelectedCanvasItemId(null)}
             >
               <div key={template} className="template-preview-transition">
                 <Template
@@ -2864,7 +3015,60 @@ export default function EditorPage({
           ) : null}
         </DragOverlay>
       </DndContext>
+      </CanvasEditorContext.Provider>
       </SectionActionsContext.Provider>
+
+      {canvasDragOverlay && typeof document !== 'undefined'
+        ? createPortal(
+            <div className="canvas-drag-overlay-layer" aria-hidden="true">
+              {(canvasDragOverlay.guides || []).map((guide, index) => (
+                <div
+                  key={`${guide.type}-${index}`}
+                  className={`canvas-guide-line canvas-guide-line--${guide.type}`}
+                  style={guide.type === 'vertical'
+                    ? {
+                        left: guide.x,
+                        top: guide.top,
+                        height: guide.length,
+                      }
+                    : {
+                        left: guide.left,
+                        top: guide.y,
+                        width: guide.length,
+                      }}
+                />
+              ))}
+              {(canvasDragOverlay.gaps || []).map((gap, index) => (
+                <div key={`${gap.type}-${index}`}>
+                  <div
+                    className={`canvas-gap-line canvas-gap-line--${gap.type}`}
+                    style={gap.type === 'vertical'
+                      ? {
+                          left: gap.x,
+                          top: gap.top,
+                          height: gap.length,
+                        }
+                      : {
+                          left: gap.left,
+                          top: gap.y,
+                          width: gap.length,
+                        }}
+                  />
+                  <div
+                    className="canvas-gap-badge"
+                    style={{
+                      left: gap.badgeLeft,
+                      top: gap.badgeTop,
+                    }}
+                  >
+                    {gap.label}
+                  </div>
+                </div>
+              ))}
+            </div>,
+            document.body
+          )
+        : null}
 
       {/* ===== RIGHT PANEL (Templates) ===== */}
       <aside className={`editor-sidebar-right${templatesOpen ? '' : ' editor-sidebar-right--collapsed'}`}>
@@ -2981,6 +3185,251 @@ function ExpandButton({ label, icon, isOpen, onClick, children }) {
 }
 
 /* ── Icons ── */
+function WorkspaceQuickTool({
+  open,
+  setOpen,
+  isEditing,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  onCreateProject,
+  onDuplicateProject,
+  onExportProject,
+  onImportProject,
+  onDeleteProject,
+}) {
+  const closeTimerRef = useRef(null);
+  const workspaceActions = [
+    { label: 'New', onClick: onCreateProject, icon: <PlusIcon /> },
+    { label: 'Duplicate', onClick: onDuplicateProject, icon: <DuplicateIcon /> },
+    { label: 'Export', onClick: onExportProject, icon: <ExportIcon /> },
+    { label: 'Import', onClick: onImportProject, icon: <ImportIcon /> },
+    { label: 'Delete', onClick: onDeleteProject, icon: <TrashIcon /> },
+  ];
+
+  const openMenu = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    setOpen(true);
+  };
+
+  const closeMenuSoon = () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      setOpen(false);
+      closeTimerRef.current = null;
+    }, 180);
+  };
+
+  return (
+    <div
+      className={`workspace-quick-tool${open ? ' workspace-quick-tool--open' : ''}`}
+      onMouseEnter={openMenu}
+      onMouseLeave={closeMenuSoon}
+      onFocus={openMenu}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          closeMenuSoon();
+        }
+      }}
+    >
+      <div className="workspace-quick-tool__hover-bridge" aria-hidden="true" />
+      <div className="workspace-quick-tool__rail" aria-hidden={!isEditing}>
+        <button
+          type="button"
+          className="workspace-quick-tool__mini"
+          onClick={onUndo}
+          disabled={!canUndo}
+          title="Undo"
+        >
+          <UndoIcon />
+        </button>
+        <button
+          type="button"
+          className="workspace-quick-tool__mini"
+          onClick={onRedo}
+          disabled={!canRedo}
+          title="Redo"
+        >
+          <RedoIcon />
+        </button>
+      </div>
+
+      <button
+        type="button"
+        className="workspace-quick-tool__trigger"
+        aria-label="Workspace actions"
+        aria-expanded={open}
+      >
+        <OrbitIcon />
+      </button>
+
+      <div className="workspace-quick-tool__menu" role="menu" aria-label="Workspace actions">
+        {workspaceActions.map((action) => (
+          <button
+            key={action.label}
+            type="button"
+            className="workspace-quick-tool__action"
+            onClick={action.onClick}
+            role="menuitem"
+          >
+            <span className="workspace-quick-tool__action-icon">{action.icon}</span>
+            <span>{action.label}</span>
+          </button>
+        ))}
+
+        <div className="workspace-quick-tool__divider" />
+
+        <div className="workspace-quick-tool__history">
+          <button
+            type="button"
+            className="workspace-quick-tool__action workspace-quick-tool__action--history"
+            onClick={onUndo}
+            disabled={!canUndo}
+          >
+            <span className="workspace-quick-tool__action-icon"><UndoIcon /></span>
+            <span>Undo</span>
+          </button>
+          <button
+            type="button"
+            className="workspace-quick-tool__action workspace-quick-tool__action--history"
+            onClick={onRedo}
+            disabled={!canRedo}
+          >
+            <span className="workspace-quick-tool__action-icon"><RedoIcon /></span>
+            <span>Redo</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceClockCard({ now }) {
+  const monthLabel = now.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+  const weekdayLabel = now.toLocaleString('en-US', { weekday: 'short' }).toUpperCase();
+  const minuteValue = now.getMinutes();
+  const secondValue = now.getSeconds();
+  const hourValue = now.getHours() % 12;
+  const minuteRotation = minuteValue * 6;
+  const hourRotation = hourValue * 30 + minuteValue * 0.5;
+  const secondRotation = secondValue * 6;
+  const dateText = `${weekdayLabel} ${now.getDate()} ${monthLabel}`;
+
+  return (
+    <section className="workspace-clock-card" aria-label="Clock and recent project">
+      <div className="workspace-clock-card__frame">
+        <div className="workspace-clock-card__body workspace-clock-card__body--solo">
+          <SquareAnalogClock
+            hourRotation={hourRotation}
+            minuteRotation={minuteRotation}
+            secondRotation={secondRotation}
+          />
+        </div>
+
+        <div className="workspace-clock-card__head">
+          <div className="workspace-clock-card__timeblock">
+            <div className="workspace-clock-card__date-text">{dateText}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function OrbitIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="2.25" fill="currentColor" stroke="none" />
+      <path d="M5.5 12a6.5 6.5 0 0 1 13 0" />
+      <path d="M7.7 7.7a6.5 6.5 0 0 1 8.6 8.6" opacity=".82" />
+      <path d="M7.5 16.5a6.5 6.5 0 0 1 9-9" opacity=".5" />
+    </svg>
+  );
+}
+
+function SquareAnalogClock({ hourRotation, minuteRotation, secondRotation }) {
+  const center = 100;
+  const outerHalf = 84;
+  const numbersHalf = 56;
+  const steps = Array.from({ length: 60 }, (_, index) => index);
+  const hours = Array.from({ length: 12 }, (_, index) => index + 1);
+  const romanHours = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+
+  const pointOnSquare = (angleDeg, half) => {
+    const angle = (angleDeg - 90) * (Math.PI / 180);
+    const dx = Math.cos(angle);
+    const dy = Math.sin(angle);
+    const scale = half / Math.max(Math.abs(dx), Math.abs(dy));
+    return {
+      x: center + dx * scale,
+      y: center + dy * scale,
+    };
+  };
+
+  return (
+    <div className="workspace-analog-clock" aria-label="Analog clock">
+      <svg className="workspace-analog-clock__svg" viewBox="0 0 200 200" role="img" aria-hidden="true">
+        {steps.map((step) => {
+          const angle = step * 6;
+          const isMajor = step % 5 === 0;
+          const outer = pointOnSquare(angle, outerHalf);
+          const inner = pointOnSquare(angle, outerHalf - (isMajor ? 12 : 7));
+          return (
+            <line
+              key={`tick-${step}`}
+              x1={inner.x}
+              y1={inner.y}
+              x2={outer.x}
+              y2={outer.y}
+              className={isMajor ? 'workspace-analog-clock__tick-line workspace-analog-clock__tick-line--major' : 'workspace-analog-clock__tick-line'}
+            />
+          );
+        })}
+
+        {hours.map((hour) => {
+          const pos = pointOnSquare(hour * 30, numbersHalf);
+          return (
+            <text
+              key={`num-${hour}`}
+              x={pos.x}
+              y={pos.y}
+              className="workspace-analog-clock__num"
+              textAnchor="middle"
+              dominantBaseline="middle"
+            >
+              {romanHours[hour - 1]}
+            </text>
+          );
+        })}
+
+        <g transform={`rotate(${hourRotation} ${center} ${center})`}>
+          <polygon
+            className="workspace-analog-clock__hand-shape workspace-analog-clock__hand-shape--hour"
+            points="92,102 100,96 108,102 102,106 100,56 98,106"
+          />
+        </g>
+        <g transform={`rotate(${minuteRotation} ${center} ${center})`}>
+          <polygon
+            className="workspace-analog-clock__hand-shape workspace-analog-clock__hand-shape--minute"
+            points="94,102 100,97 106,102 102,106 100,42 98,106"
+          />
+        </g>
+        <g transform={`rotate(${secondRotation} ${center} ${center})`}>
+          <line className="workspace-analog-clock__second" x1="100" y1="99" x2="100" y2="34" />
+          <line className="workspace-analog-clock__second" x1="100" y1="104" x2="100" y2="150" />
+        </g>
+
+        <circle cx="100" cy="100" r="7" className="workspace-analog-clock__hub-ring" />
+        <circle cx="100" cy="100" r="3" className="workspace-analog-clock__hub-core" />
+      </svg>
+    </div>
+  );
+}
+
 function TemplateIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -3066,6 +3515,74 @@ function GlobalSettingsIcon() {
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 .99-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51.99H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function DuplicateIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="9" width="10" height="10" rx="2" />
+      <path d="M5 15V7a2 2 0 0 1 2-2h8" />
+    </svg>
+  );
+}
+
+function ExportIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 15V4" />
+      <path d="m8 8 4-4 4 4" />
+      <path d="M5 20h14" />
+    </svg>
+  );
+}
+
+function ImportIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 9v11" />
+      <path d="m8 16 4 4 4-4" />
+      <path d="M5 4h14" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="m19 6-1 13a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </svg>
+  );
+}
+
+function UndoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h9a7 7 0 1 1 0 14h-1" />
+    </svg>
+  );
+}
+
+function RedoIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m15 14 5-5-5-5" />
+      <path d="M20 9h-9a7 7 0 1 0 0 14h1" />
     </svg>
   );
 }

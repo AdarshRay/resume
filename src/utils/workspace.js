@@ -19,9 +19,13 @@ export function extractProjectName(snapshot) {
 }
 
 export function createProjectSnapshot(state = {}) {
+  const selectedTemplate = state.selectedTemplate ?? 'designer-slate';
+  const canvasPositionsByTemplate = state.canvasPositionsByTemplate
+    ?? (state.canvasPositions ? { [selectedTemplate]: state.canvasPositions } : {});
+
   return {
     resumeData: state.resumeData ?? null,
-    selectedTemplate: state.selectedTemplate ?? 'designer-slate',
+    selectedTemplate,
     photoUrl: state.photoUrl ?? null,
     photoSettings: state.photoSettings ?? { zoom: 100, posX: 50, posY: 50 },
     photoShape: state.photoShape ?? 'square',
@@ -33,6 +37,8 @@ export function createProjectSnapshot(state = {}) {
     sectionOrder: state.sectionOrder ?? ['summary', 'experience'],
     sidebarOrder: state.sidebarOrder ?? ['skills', 'education', 'certifications'],
     sectionLayout: state.sectionLayout ?? {},
+    canvasPositionsByTemplate,
+    canvasPositions: canvasPositionsByTemplate[selectedTemplate] ?? {},
     extraPages: state.extraPages ?? 0,
     pageLayoutModes: state.pageLayoutModes ?? {},
     pageSidebarVisible: state.pageSidebarVisible ?? {},

@@ -282,6 +282,14 @@ export default function App() {
     _validatedPlacement.side.forEach((id, i) => { base[id] = { ...base[id], page: 1, column: 'side', order: i }; });
     return base;
   });
+  const [canvasPositionsByTemplate, setCanvasPositionsByTemplate] = useState(() => {
+    if (initialSnapshot?.canvasPositionsByTemplate) return initialSnapshot.canvasPositionsByTemplate;
+    if (initialSnapshot?.canvasPositions) {
+      const templateKey = initialSnapshot?.selectedTemplate ?? DEFAULT_TEMPLATE;
+      return { [templateKey]: initialSnapshot.canvasPositions };
+    }
+    return {};
+  });
   const [extraPages, setExtraPages] = useState(initialSnapshot?.extraPages ?? 0);
   // Per-page layout mode: 'full-width' (default) or 'same-as-primary'
   const [pageLayoutModes, setPageLayoutModes] = useState(initialSnapshot?.pageLayoutModes ?? {});
@@ -322,6 +330,21 @@ export default function App() {
     [workspaceProjects, activeProjectId]
   );
   const currentProjectName = activeProject?.name || extractProjectName({ resumeData });
+  const canvasPositions = useMemo(
+    () => canvasPositionsByTemplate?.[selectedTemplate] ?? {},
+    [canvasPositionsByTemplate, selectedTemplate]
+  );
+  const setCanvasPositions = useCallback((updater) => {
+    setCanvasPositionsByTemplate((prev) => {
+      const current = prev?.[selectedTemplate] ?? {};
+      const nextValue = typeof updater === 'function' ? updater(current) : updater;
+      if (nextValue === current) return prev;
+      return {
+        ...(prev || {}),
+        [selectedTemplate]: nextValue || {},
+      };
+    });
+  }, [selectedTemplate]);
 
   const buildCurrentSnapshot = useCallback(() => createProjectSnapshot({
     resumeData,
@@ -337,6 +360,7 @@ export default function App() {
     sectionOrder,
     sidebarOrder,
     sectionLayout,
+    canvasPositionsByTemplate,
     extraPages,
     pageLayoutModes,
     pageSidebarVisible,
@@ -357,6 +381,7 @@ export default function App() {
     sectionOrder,
     sidebarOrder,
     sectionLayout,
+    canvasPositionsByTemplate,
     extraPages,
     pageLayoutModes,
     pageSidebarVisible,
@@ -393,6 +418,7 @@ export default function App() {
       validated.side.forEach((id, i) => { base[id] = { ...base[id], page: 1, column: 'side', order: i }; });
       return base;
     });
+    setCanvasPositionsByTemplate(safeSnapshot.canvasPositionsByTemplate || {});
     setExtraPages(safeSnapshot.extraPages ?? 0);
     setPageLayoutModes(safeSnapshot.pageLayoutModes || {});
     setPageSidebarVisible(safeSnapshot.pageSidebarVisible || {});
@@ -511,7 +537,7 @@ export default function App() {
     const currentSerialized = history[historyIndex] ? JSON.stringify(history[historyIndex]) : '';
     if (serialized === currentSerialized) return;
 
-    const nextHistory = [...history.slice(0, historyIndex + 1), snapshot].slice(-80);
+    const nextHistory = [...history.slice(0, historyIndex + 1), snapshot].slice(-10);
     setHistory(nextHistory);
     setHistoryIndex(nextHistory.length - 1);
   }, [buildCurrentSnapshot, history, historyIndex, resumeData, step]);
@@ -546,13 +572,13 @@ export default function App() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({
         resumeData, selectedTemplate, photoUrl, photoSettings, photoShape,
         colors, globalFont, styleSettings, sectionLabels,
-        sectionOrder, sidebarOrder, sectionLayout, extraPages, pageLayoutModes, pageSidebarVisible,
+        sectionOrder, sidebarOrder, sectionLayout, canvasPositionsByTemplate, extraPages, pageLayoutModes, pageSidebarVisible,
       }));
     } catch { /* quota exceeded — silently ignore */ }
   }, [
     resumeData, selectedTemplate, photoUrl, photoSettings, photoShape,
     colors, globalFont, styleSettings, sectionLabels,
-    sectionOrder, sidebarOrder, sectionLayout, extraPages, pageLayoutModes, pageSidebarVisible,
+    sectionOrder, sidebarOrder, sectionLayout, canvasPositionsByTemplate, extraPages, pageLayoutModes, pageSidebarVisible,
   ]);
 
   const goHome = useCallback(() => {
@@ -1203,6 +1229,8 @@ ${text}`
               setSidebarOrder={setSidebarOrder}
               sectionLayout={sectionLayout}
               setSectionLayout={setSectionLayout}
+              canvasPositions={canvasPositions}
+              setCanvasPositions={setCanvasPositions}
               extraPages={extraPages}
               setExtraPages={setExtraPages}
               pageLayoutModes={pageLayoutModes}

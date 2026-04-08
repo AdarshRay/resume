@@ -4,7 +4,7 @@ const A4W = 794;
 const A4H = 1123;
 const PAGE_GAP = 40;
 
-export default function A4Wrapper({ children, pageContents = {}, extraPages = 0, onAddPage, pageLayoutModes = {}, setPageLayoutModes, pageSidebarVisible = {}, setPageSidebarVisible }) {
+export default function A4Wrapper({ children, pageContents = {}, extraPages = 0, onAddPage, pageLayoutModes = {}, setPageLayoutModes, pageSidebarVisible = {}, setPageSidebarVisible, onPageBackgroundPointerDown }) {
   const containerRef = useRef(null);
   const [scale, setScale] = useState(0.6);
 
@@ -53,12 +53,17 @@ export default function A4Wrapper({ children, pageContents = {}, extraPages = 0,
             <div
               id={pageIndex === 0 ? 'resume-content' : `resume-page-${pageIndex + 1}`}
               className="a4-page"
+              data-page-number={pageIndex + 1}
               style={{
                 width: A4W,
                 height: A4H,
                 position: 'relative',
                 background: '#ffffff',
                 overflow: 'hidden',
+              }}
+              onMouseDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                onPageBackgroundPointerDown?.(pageIndex + 1, event);
               }}
             >
               {pageIndex === 0 ? (

@@ -43,37 +43,59 @@ export default function EditableText({ value, onChange, tag = 'span', style, cla
     toolbar?.deactivateEditable?.(ref.current);
   }, [value, onChange, multiline, toolbar]);
 
-  const handleDoubleClick = useCallback((e) => {
+  const placeCaretFromPoint = useCallback((x, y) => {
+    const selection = window.getSelection();
+    if (!selection || !ref.current) return;
+
+    try {
+      if (typeof document.caretRangeFromPoint === 'function') {
+        const range = document.caretRangeFromPoint(x, y);
+        if (range) {
+          selection.removeAllRanges();
+          selection.addRange(range);
+          return;
+        }
+      }
+
+      if (typeof document.caretPositionFromPoint === 'function') {
+        const position = document.caretPositionFromPoint(x, y);
+        if (position) {
+          const range = document.createRange();
+          range.setStart(position.offsetNode, position.offset);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          return;
+        }
+      }
+    } catch {
+      // Fall back to placing the caret at the end if the browser rejects point-based placement.
+    }
+
+    selection.selectAllChildren(ref.current);
+    selection.collapseToEnd();
+  }, []);
+
+  const startEditing = useCallback((e) => {
     e.stopPropagation();
     setEditing(true);
-    // Focus after React re-renders with contentEditable=true
     requestAnimationFrame(() => {
       if (ref.current) {
         ref.current.focus();
         toolbar?.activateEditable?.(ref.current);
-        // Place cursor at click position via selection
-        const sel = window.getSelection();
-        if (sel && ref.current.childNodes.length > 0) {
-          try {
-            const range = document.caretRangeFromPoint(e.clientX, e.clientY);
-            if (range) {
-              sel.removeAllRanges();
-              sel.addRange(range);
-            }
-          } catch {
-            // Fallback: select all text
-            sel.selectAllChildren(ref.current);
-            sel.collapseToEnd();
-          }
+        if (typeof e.clientX === 'number' && typeof e.clientY === 'number') {
+          placeCaretFromPoint(e.clientX, e.clientY);
         }
       }
     });
-  }, [toolbar]);
+  }, [placeCaretFromPoint, toolbar]);
 
   // When editing, stop propagation so dnd-kit doesn't start a drag
   // When not editing, let the event bubble up to the drag listener
   const handleMouseDown = useCallback((e) => {
-    e.stopPropagation();
+    if (editing) {
+      e.stopPropagation();
+    }
   }, [editing]);
 
   const handleFocus = useCallback(() => {
@@ -93,13 +115,17 @@ export default function EditableText({ value, onChange, tag = 'span', style, cla
     }
   }, [multiline]);
 
+  const bulletBlockStyle = bulletBlock ? {
+    display: 'block',
+  } : null;
+
   return (
     <Tag
       ref={ref}
       contentEditable={editing}
       suppressContentEditableWarning
       onBlur={handleBlur}
-      onDoubleClick={handleDoubleClick}
+      onClick={startEditing}
       onMouseDown={handleMouseDown}
       onFocus={handleFocus}
       onInput={handleInput}
@@ -108,6 +134,7 @@ export default function EditableText({ value, onChange, tag = 'span', style, cla
       className={className}
       style={{
         margin: 0,
+        ...(bulletBlockStyle || {}),
         ...style,
         cursor: 'text',
         userSelect: 'text',

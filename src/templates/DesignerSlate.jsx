@@ -10,7 +10,7 @@ import CertificationsRenderer from '../components/CertificationsRenderer';
 import ProjectSection from '../components/ProjectSection';
 import { isStructuredProjectSection } from '../utils/projectSections';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { bulletBlockValue, parseBulletBlock } from '../utils/bulletBlocks';
+import { bulletBlockValue, parseBulletBlock, isPlainBulletLine, stripPlainBulletPrefix, isStoredBulletLine, extractStoredBulletGlyph } from '../utils/bulletBlocks';
 
 const DEFAULTS = {
   accent: '#9CA3B5',
@@ -111,6 +111,90 @@ export default function DesignerSlate({
     );
   };
 
+  const renderDesignerBulletRows = (bullets, options = {}) => {
+    const {
+      textColor,
+      fontDelta = 0,
+      lineHeight = 1.55,
+      bulletEdit,
+      bulletDelete,
+      bulletAdd,
+    } = options;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {(bullets || []).map((item, bulletIndex) => {
+          const storedBullet = isStoredBulletLine(item);
+          const glyph = storedBullet ? extractStoredBulletGlyph(item, '•') : (isPlainBulletLine(item) ? '' : '•');
+          const text = storedBullet ? item.split('::').slice(2).join('::') : stripPlainBulletPrefix(item || '');
+          const nextValue = glyph
+            ? `__bullet__::${glyph}::`
+            : '__plain__::';
+
+          return (
+            <div
+              key={bulletIndex}
+              className="group/bullet"
+              style={{
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 10,
+                paddingRight: 18,
+                minWidth: 0,
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 18,
+                  flex: '0 0 18px',
+                  color: textColor,
+                  fontSize: fontSize + fontDelta,
+                  lineHeight,
+                  textAlign: 'center',
+                }}
+              >
+                {glyph || ''}
+              </span>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <EditableText
+                  value={text}
+                  onChange={(v) => bulletEdit(bulletIndex, `${nextValue}${v}`)}
+                  tag="div"
+                  style={{
+                    fontSize: fontSize + fontDelta,
+                    color: textColor,
+                    lineHeight,
+                    whiteSpace: 'normal',
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'normal',
+                    minWidth: 0,
+                  }}
+                />
+              </div>
+
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: 1,
+                }}
+              >
+                <DeleteButton onClick={() => bulletDelete(bulletIndex)} />
+              </div>
+            </div>
+          );
+        })}
+
+        <div>
+          <AddButton onClick={() => bulletAdd?.()} label="bullet" />
+        </div>
+      </div>
+    );
+  };
+
   const renderDesignerExperience = (exp, index, variant = 'main') => {
     const groupedSections = getGroupedSections(exp);
     const isSidebar = variant === 'side';
@@ -190,7 +274,7 @@ export default function DesignerSlate({
                     fontSize: fontSize + (isSidebar ? 0 : 1),
                   }}
                 />
-                {renderDesignerBullets(section.bullets, {
+                {renderDesignerBulletRows(section.bullets, {
                   textColor: isSidebar ? sidebarText : c.text,
                   dotColor,
                   fontDelta: isSidebar ? 0 : 1,
@@ -205,7 +289,7 @@ export default function DesignerSlate({
                 </div>
               </div>
             ))}
-            {(exp.bullets || []).length > 0 && renderDesignerBullets(exp.bullets, {
+            {(exp.bullets || []).length > 0 && renderDesignerBulletRows(exp.bullets, {
               textColor: isSidebar ? sidebarText : c.text,
               dotColor,
               fontDelta: isSidebar ? 0 : 1,
@@ -217,7 +301,7 @@ export default function DesignerSlate({
           </div>
         ) : (
           <div style={{ marginTop: isSidebar ? 3 : 5 }}>
-            {renderDesignerBullets(exp.bullets || [], {
+            {renderDesignerBulletRows(exp.bullets || [], {
               textColor: isSidebar ? sidebarText : c.text,
               dotColor,
               fontDelta: isSidebar ? 0 : 1,

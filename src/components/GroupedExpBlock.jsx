@@ -1,6 +1,12 @@
 import EditableText from './EditableText';
 import AddButton from './AddButton';
-import { bulletBlockValue, parseBulletBlock } from '../utils/bulletBlocks';
+import DeleteButton from './DeleteButton';
+import {
+  isPlainBulletLine,
+  stripPlainBulletPrefix,
+  isStoredBulletLine,
+  extractStoredBulletGlyph,
+} from '../utils/bulletBlocks';
 
 export default function GroupedExpBlock({
   exp,
@@ -16,43 +22,119 @@ export default function GroupedExpBlock({
     : [];
   const flatBullets = Array.isArray(exp.bullets) ? exp.bullets : [];
 
-  const renderBulletList = (bullets, groupIndex = null) => (
-    <EditableText
-      value={bulletBlockValue(bullets, bulletChar)}
-      onChange={(v) => {
-        const nextBullets = parseBulletBlock(v);
-        if (typeof groupIndex === 'number') {
-          const current = bullets || [];
-          nextBullets.forEach((item, bulletIndex) => {
-            if (current[bulletIndex] !== undefined) onEdit('exp_group_bullet', { i: idx, j: groupIndex, k: bulletIndex, v: item });
-            else onEdit('exp_group_bullet_add', { i: idx, j: groupIndex });
-          });
-          nextBullets.forEach((item, bulletIndex) => {
-            if (current[bulletIndex] === undefined) onEdit('exp_group_bullet', { i: idx, j: groupIndex, k: bulletIndex, v: item });
-          });
-          for (let bulletIndex = current.length - 1; bulletIndex >= nextBullets.length; bulletIndex -= 1) {
-            onEdit('exp_group_bullet_del', { i: idx, j: groupIndex, k: bulletIndex });
-          }
-          return;
-        }
-        const current = bullets || [];
-        nextBullets.forEach((item, bulletIndex) => {
-          if (current[bulletIndex] !== undefined) onEdit('exp_bullet', { i: idx, j: bulletIndex, v: item });
-          else onEdit('exp_bullet_add', { i: idx });
-        });
-        nextBullets.forEach((item, bulletIndex) => {
-          if (current[bulletIndex] === undefined) onEdit('exp_bullet', { i: idx, j: bulletIndex, v: item });
-        });
-        for (let bulletIndex = current.length - 1; bulletIndex >= nextBullets.length; bulletIndex -= 1) {
-          onEdit('exp_bullet_del', { i: idx, j: bulletIndex });
-        }
+  const renderBulletRow = ({
+    key,
+    glyph = bulletChar,
+    text,
+    onChange,
+    onDelete,
+  }) => (
+    <div
+      key={key}
+      className="group/bullet"
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 10,
+        paddingRight: onDelete ? 18 : 0,
+        minWidth: 0,
       }}
-      tag="div"
-      multiline
-      bulletBlock
-      className="flex-1"
-      style={{ whiteSpace: 'pre-line', color: bodyColor, fontSize: 10, lineHeight: 1.7 }}
-    />
+    >
+      {glyph ? (
+        <span
+          aria-hidden="true"
+          style={{
+            color: bodyColor,
+            fontSize: 10,
+            lineHeight: 1.7,
+            textAlign: 'center',
+            paddingTop: 1,
+            width: 18,
+            flex: '0 0 18px',
+          }}
+        >
+          {glyph}
+        </span>
+      ) : (
+        <span style={{ width: 18, flex: '0 0 18px' }} />
+      )}
+
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+      <EditableText
+        value={text}
+        onChange={onChange}
+        tag="div"
+        className="flex-1"
+        style={{
+          color: bodyColor,
+          fontSize: 10,
+          lineHeight: 1.7,
+          whiteSpace: 'normal',
+          overflowWrap: 'anywhere',
+          wordBreak: 'normal',
+          minWidth: 0,
+          marginTop: 0,
+        }}
+      />
+      </div>
+
+      {onDelete ? (
+        <div
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: 1,
+          }}
+        >
+          <DeleteButton onClick={onDelete} />
+        </div>
+      ) : null}
+    </div>
+  );
+
+  const renderBulletList = (bullets, groupIndex = null) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {(bullets || []).map((item, bulletIndex) => {
+        const storedBullet = isStoredBulletLine(item);
+        const glyph = storedBullet ? extractStoredBulletGlyph(item, bulletChar) : (isPlainBulletLine(item) ? '' : bulletChar);
+        const text = storedBullet ? item.split('::').slice(2).join('::') : stripPlainBulletPrefix(item || '');
+
+        const handleChange = (nextText) => {
+          const trimmed = nextText;
+          const nextValue = glyph
+            ? `__bullet__::${glyph || bulletChar}::${trimmed}`
+            : `__plain__::${trimmed}`;
+
+          if (typeof groupIndex === 'number') {
+            onEdit('exp_group_bullet', { i: idx, j: groupIndex, k: bulletIndex, v: nextValue });
+            return;
+          }
+          onEdit('exp_bullet', { i: idx, j: bulletIndex, v: nextValue });
+        };
+
+        const handleDelete = () => {
+          if (typeof groupIndex === 'number') {
+            onEdit('exp_group_bullet_del', { i: idx, j: groupIndex, k: bulletIndex });
+            return;
+          }
+          onEdit('exp_bullet_del', { i: idx, j: bulletIndex });
+        };
+
+        return renderBulletRow({
+          key: bulletIndex,
+          glyph,
+          text,
+          onChange: handleChange,
+          onDelete: handleDelete,
+        });
+      })}
+    </div>
   );
 
   return (
@@ -81,13 +163,14 @@ export default function GroupedExpBlock({
         style={{ color: accentColor, margin: '1px 0 3px 0', lineHeight: 1.22 }}
       />
       {!!exp.client && (
-        <EditableText
-          value={exp.client}
-          onChange={(v) => onEdit('exp_client', { i: idx, v })}
-          tag="p"
-          className="text-[10px]"
-          style={{ color: bodyColor, margin: '0 0 4px 0', lineHeight: 1.22, fontWeight: 500 }}
-        />
+        <div style={{ margin: '0 0 4px 0' }}>
+          {renderBulletRow({
+            key: 'client',
+            glyph: bulletChar,
+            text: exp.client,
+            onChange: (v) => onEdit('exp_client', { i: idx, v }),
+          })}
+        </div>
       )}
 
       {groupedSections.length > 0 ? (
