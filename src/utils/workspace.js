@@ -1,3 +1,5 @@
+import { getStorageJSON, setStorageJSON } from './storage';
+
 const WORKSPACE_KEY = 'resumeBuilder_workspace_v2';
 const LEGACY_KEY = 'resumeBuilder_state';
 
@@ -72,30 +74,19 @@ function normalizeProject(project) {
 }
 
 export function loadLegacySnapshot() {
-  try {
-    const raw = localStorage.getItem(LEGACY_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  return getStorageJSON(LEGACY_KEY, null);
 }
 
 export function loadWorkspace() {
-  try {
-    const raw = localStorage.getItem(WORKSPACE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      const projects = Array.isArray(parsed?.projects)
-        ? parsed.projects.map(normalizeProject).filter(Boolean)
-        : [];
-      const activeProjectId = projects.some((project) => project.id === parsed?.activeProjectId)
-        ? parsed.activeProjectId
-        : projects[0]?.id || null;
-      return { projects, activeProjectId };
-    }
-  } catch {
-    // Fall back to legacy migration.
+  const parsed = getStorageJSON(WORKSPACE_KEY, null);
+  if (parsed) {
+    const projects = Array.isArray(parsed?.projects)
+      ? parsed.projects.map(normalizeProject).filter(Boolean)
+      : [];
+    const activeProjectId = projects.some((project) => project.id === parsed?.activeProjectId)
+      ? parsed.activeProjectId
+      : projects[0]?.id || null;
+    return { projects, activeProjectId };
   }
 
   const legacy = loadLegacySnapshot();
@@ -119,11 +110,7 @@ export function loadWorkspace() {
 }
 
 export function saveWorkspace(workspace) {
-  try {
-    localStorage.setItem(WORKSPACE_KEY, JSON.stringify(workspace));
-  } catch {
-    // Best effort only.
-  }
+  setStorageJSON(WORKSPACE_KEY, workspace);
 }
 
 export function serializeProjectForExport(project) {

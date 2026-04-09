@@ -1,14 +1,33 @@
 /**
  * Robust text extraction from PDF, DOCX, DOC, TXT files.
- * PDF.js and Mammoth are bundled with the app to avoid CDN-only runtime dependencies.
+ * Heavy parsing libraries are loaded on demand so the editor stays lighter
+ * until someone actually imports a document.
  */
 
-import mammothLib from 'mammoth/mammoth.browser.min.js';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-import pdfWorkerSrc from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
+let mammothLibPromise = null;
+let pdfjsLibPromise = null;
 
-if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+async function loadMammoth() {
+  if (!mammothLibPromise) {
+    mammothLibPromise = import('mammoth/mammoth.browser.min.js')
+      .then((module) => module.default || module);
+  }
+  return mammothLibPromise;
+}
+
+async function loadPdfjs() {
+  if (!pdfjsLibPromise) {
+    pdfjsLibPromise = Promise.all([
+      import('pdfjs-dist/legacy/build/pdf.mjs'),
+      import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
+    ]).then(([pdfjsLib, workerModule]) => {
+      if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = workerModule.default;
+      }
+      return pdfjsLib;
+    });
+  }
+  return pdfjsLibPromise;
 }
 
 export async function extractText(file) {
@@ -31,12 +50,13 @@ export async function extractText(file) {
 }
 
 /**
- * Extract text from PDF using PDF.js (loaded from CDN).
+ * Extract text from PDF using PDF.js.
  * Groups text items by Y-coordinate (with tolerance) to reconstruct proper lines.
  * Detects large horizontal gaps to preserve column/field separation.
  */
 async function extractPdf(file) {
   try {
+    const pdfjsLib = await loadPdfjs();
     const arrayBuffer = await file.arrayBuffer();
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
@@ -194,7 +214,7 @@ async function extractPdf(file) {
   }
 }
 
-function normalizePdfExtractedLine(raw) {
+export function normalizePdfExtractedLine(raw) {
   if (!raw) return '';
   let text = raw.replace(/\u00A0/g, ' ').replace(/[ \t]{2,}/g, ' ').trim();
   if (!text) return '';
@@ -247,7 +267,7 @@ function dedupeSegmentLines(lines) {
  * lists, paragraphs), then falls back to raw text extraction.
  */
 async function extractDocx(file) {
-  const mammoth = mammothLib;
+  const mammoth = await loadMammoth();
 
   if (!mammoth || typeof mammoth.extractRawText !== 'function') {
     throw new Error(
@@ -303,11 +323,11 @@ async function extractDocx(file) {
  */
 const SECTION_HEADING_WORDS = /^(?:\*{0,2}\s*)?(summary|profile|skills?|work\s*experience|work|experience|education|certifications?|professional\s*achievements?|achievements?|awards?|communication|languages?|strengths?|personal\s*(?:details|information)|declaration|projects?|hobbies|interests|references|training|qualifications|objective|overview|about\s*me|career\s*(?:objective|history)|employment|professional\s*(?:summary|experience)|technical\s*skills|key\s*skills|core\s*(?:competencies|strengths)|soft\s*skills|volunteer(?:ing)?|publications?)(?:\s*\*{0,2})?\s*$/i;
 
-function htmlToStructuredText(html) {
+export function htmlToStructuredText(html) {
   // Normalize whitespace inside tags first
   let text = html.replace(/\r\n?/g, '\n');
 
-  // Headings → prefix with newlines and uppercase for clarity
+  // Headings -> prefix with newlines and uppercase for clarity
   text = text.replace(/<h([1-6])[^>]*>(.*?)<\/h\1>/gi, (_, level, content) => {
     return '\n\n' + stripTags(content).toUpperCase() + '\n';
   });
@@ -316,7 +336,7 @@ function htmlToStructuredText(html) {
   text = text.replace(/<strong[^>]*>(.*?)<\/strong>/gi, (_, content) => '**' + content + '**');
   text = text.replace(/<b[^>]*>(.*?)<\/b>/gi, (_, content) => '**' + content + '**');
 
-  // Table rows → smart conversion:
+  // Table rows -> smart conversion:
   // If the first cell looks like a section heading, output it as a standalone heading
   // followed by the remaining cells as content lines.
   // Otherwise, join cells with " | " for data tables (like education rows).
@@ -339,13 +359,13 @@ function htmlToStructuredText(html) {
       return heading;
     }
 
-    // Data table row — join with " | " (e.g., education table)
+    // Data table row -> join with " | " (e.g., education table)
     return cells.join(' | ') + '\n';
   });
 
-  // List items → prefix with bullet
+  // List items -> prefix with a standard list marker
   text = text.replace(/<li[^>]*>(.*?)<\/li>/gi, (_, content) => {
-    return '  • ' + stripTags(content).trim() + '\n';
+    return '  - ' + stripTags(content).trim() + '\n';
   });
 
   // Paragraph and div breaks
@@ -368,9 +388,9 @@ function htmlToStructuredText(html) {
     .replace(/&lsquo;/g, "'")
     .replace(/&rdquo;/g, '"')
     .replace(/&ldquo;/g, '"')
-    .replace(/&mdash;/g, '—')
-    .replace(/&ndash;/g, '–')
-    .replace(/&bull;/g, '•')
+    .replace(/&mdash;/g, '--')
+    .replace(/&ndash;/g, '-')
+    .replace(/&bull;/g, '-')
     .replace(/&#\d+;/g, '');
 
   // Clean up excessive whitespace while preserving structure

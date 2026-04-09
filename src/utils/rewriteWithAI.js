@@ -1,5 +1,7 @@
 import { getAIRewriteEndpoint } from './aiConfig';
 
+const REWRITE_TIMEOUT_MS = 12000;
+
 function normalizeLines(text) {
   return String(text || '')
     .split('\n')
@@ -17,7 +19,7 @@ function polishSentence(text) {
   return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
 }
 
-function fallbackRewrite(text, scope = 'section') {
+export function fallbackRewrite(text, scope = 'section') {
   const lines = normalizeLines(text);
   if (!lines.length) return '';
 
@@ -50,6 +52,11 @@ export async function rewriteTextWithAI(text, { scope = 'section', context = '' 
   const rewriteEndpoint = getAIRewriteEndpoint();
   if (!rewriteEndpoint) return fallbackRewrite(cleaned, scope);
 
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = controller
+    ? globalThis.setTimeout(() => controller.abort(), REWRITE_TIMEOUT_MS)
+    : null;
+
   try {
     const instructions = {
       summary: 'Rewrite this resume summary so it sounds premium, concise, and credible. Keep it to 2-3 strong sentences.',
@@ -63,6 +70,7 @@ export async function rewriteTextWithAI(text, { scope = 'section', context = '' 
       headers: {
         'Content-Type': 'application/json',
       },
+      signal: controller?.signal,
       body: JSON.stringify({
         scope,
         context,
@@ -75,11 +83,13 @@ export async function rewriteTextWithAI(text, { scope = 'section', context = '' 
       throw new Error(`Rewrite endpoint failed with ${response.status}`);
     }
 
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     const rewritten = result?.text?.trim() || result?.output?.trim() || result?.content?.[0]?.text?.trim();
     return rewritten || fallbackRewrite(cleaned, scope);
   } catch (error) {
     console.error('Rewrite endpoint failed, using built-in fallback:', error);
     return fallbackRewrite(cleaned, scope);
+  } finally {
+    if (timeoutId) globalThis.clearTimeout(timeoutId);
   }
 }

@@ -1,0 +1,23 @@
+{
+  "name": "CV Craft",
+  "short_name": "CV Craft",
+  "description": "A premium resume builder for importing, editing, and exporting polished resumes.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f1ea",
+  "theme_color": "#1b2a4a",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./cv-craft-logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,7 +1,8 @@
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
-
 export default async function generatePdf(elementId, fileName) {
+  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ]);
   const A4_W_MM = 210, A4_H_MM = 297;
   const A4_H_PX = 1123;
 

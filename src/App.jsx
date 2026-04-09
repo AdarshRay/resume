@@ -14,6 +14,8 @@ import {
   saveWorkspace,
   serializeProjectForExport,
 } from './utils/workspace';
+import { getStorageValue, removeStorageValue, setStorageJSON, setStorageValue } from './utils/storage';
+import { requestAnthropicResumeParse } from './utils/resumeGeneration';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const UploadPage = lazy(() => import('./pages/UploadPage'));
@@ -22,11 +24,13 @@ const EditorPage = lazy(() => import('./pages/EditorPage'));
 
 const THEME_KEY = 'resumeBuilder_theme';
 function loadTheme() {
-  try { return localStorage.getItem(THEME_KEY) || 'light'; } catch { return 'light'; }
+  return getStorageValue(THEME_KEY, 'light');
 }
 
 const DEFAULT_TEMPLATE = 'designer-slate';
 const DEFAULT_COLORS = { accent: '#C9A84C', sidebar: '#1B2A4A', heading: '#1B2A4A', text: '#4b5563', background: '#ffffff' };
+const RESUME_PARSE_TIMEOUT_MS = 20000;
+const ANTHROPIC_PARSE_MODEL = String(import.meta.env.VITE_ANTHROPIC_PARSE_MODEL || 'claude-sonnet-4-20250514').trim();
 
 const DEFAULT_SECTION_ORDER = ['summary', 'experience'];
 const DEFAULT_SIDEBAR_ORDER = ['skills', 'education', 'certifications'];
@@ -256,7 +260,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    try { localStorage.setItem(THEME_KEY, theme); } catch { return; }
+    setStorageValue(THEME_KEY, theme);
   }, [theme]);
 
   const toggleTheme = useCallback(() => {
@@ -568,13 +572,11 @@ export default function App() {
     if (!mounted.current) { mounted.current = true; return; }
     // Only persist when user has resume data (i.e. in editor)
     if (!resumeData) return;
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        resumeData, selectedTemplate, photoUrl, photoSettings, photoShape,
-        colors, globalFont, styleSettings, sectionLabels,
-        sectionOrder, sidebarOrder, sectionLayout, canvasPositionsByTemplate, extraPages, pageLayoutModes, pageSidebarVisible,
-      }));
-    } catch { /* quota exceeded — silently ignore */ }
+    setStorageJSON(STORAGE_KEY, {
+      resumeData, selectedTemplate, photoUrl, photoSettings, photoShape,
+      colors, globalFont, styleSettings, sectionLabels,
+      sectionOrder, sidebarOrder, sectionLayout, canvasPositionsByTemplate, extraPages, pageLayoutModes, pageSidebarVisible,
+    });
   }, [
     resumeData, selectedTemplate, photoUrl, photoSettings, photoShape,
     colors, globalFont, styleSettings, sectionLabels,
@@ -582,7 +584,7 @@ export default function App() {
   ]);
 
   const goHome = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
+    removeStorageValue(STORAGE_KEY);
     setStep('landing');
   }, []);
 
@@ -603,47 +605,12 @@ export default function App() {
       let parsed;
 
       if (apiKey) {
-        const response = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-            'anthropic-dangerous-direct-browser-access': 'true',
-          },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 4096,
-            messages: [{
-              role: 'user',
-              content: `You are an expert resume parser. Your job is to extract EVERY piece of information from the document below. Do NOT skip or summarize anything — include ALL job roles, ALL bullet points, ALL skills, ALL education entries, ALL certifications.
-
-Return ONLY valid JSON (no backticks, no markdown, no explanation) matching this exact schema:
-{"name":"Full Name","title":"Job Title","email":"","phone":"","location":"City, State","summary":"2-3 sentence professional summary","experience":[{"role":"Job Title","company":"Company Name","period":"Start - End","bullets":["Achievement 1","Achievement 2"]}],"skills":["Skill 1","Skill 2"],"education":[{"degree":"Degree Name","school":"School Name","year":"Year or range"}],"certifications":["Cert 1"],"customSections":[{"title":"Contact Details","placement":"side","items":["item 1","item 2"]}]}
-
-CRITICAL RULES:
-- Extract EVERY job/role listed, not just the most recent
-- Include ALL bullet points for each job exactly as written
-- List ALL skills mentioned anywhere in the document
-- Include ALL education entries
-- Include ALL certifications and licenses under certifications
-- Put awards, achievements, projects, languages, strengths, hobbies, references, declaration, and contact/personal details into customSections instead of misplacing them into summary or experience
-- Use empty string "" for genuinely missing fields, never skip a field
-- If no summary exists, write a professional 2-3 sentence summary based on the experience
-- Keep the original wording - do not rephrase or shorten bullet points
-- Never place email, phone, address, links, or references inside summary
-- Never place education lines into experience or experience lines into education
-- customSections placement must be "side" for contact details, languages, strengths, hobbies, declaration, and references; use "main" for awards, projects, volunteering, publications, training, and leadership
-
-Document to parse:
-${text}`
-            }]
-          })
+        parsed = await requestAnthropicResumeParse({
+          apiKey,
+          text,
+          model: ANTHROPIC_PARSE_MODEL,
+          timeoutMs: RESUME_PARSE_TIMEOUT_MS,
         });
-
-        const result = await response.json();
-        const content = result?.content?.[0]?.text || '{}';
-        parsed = JSON.parse(content);
       } else {
         parsed = fallbackParse(text);
       }

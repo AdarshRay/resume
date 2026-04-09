@@ -42,15 +42,23 @@ If no endpoint is configured, the app still works fully, but rewrite actions use
 - `npm run preview` previews the production build
 - `npm run lint` runs ESLint
 - `npm run test` runs the Vitest suite
+- `npm run check` runs lint, tests, and production build together
+- `npm run audit` checks dependency vulnerabilities at `moderate` severity and above
 
 ## Environment
 
 Optional environment variables:
 
 - `VITE_AI_REWRITE_ENDPOINT`: HTTP endpoint used for network-backed rewriting
+- `VITE_ANTHROPIC_API_KEY`: enables Anthropic-backed resume parsing in the browser
+- `VITE_ANTHROPIC_PARSE_MODEL`: optional override for the parsing model, defaults to `claude-sonnet-4-20250514`
+
+Copy `.env.example` to `.env` and fill in only the values you want to enable.
 
 ## Notes
 
 - Project state is stored locally in browser storage.
 - The app is designed to remain usable even when AI rewriting is not configured.
-- The current build uses manual chunking in Vite to reduce oversized bundle warnings from document and editor tooling.
+- The current build uses manual chunking in Vite so import, export, and template tooling stay out of the initial app path.
+- GitHub Actions CI runs `npm run check` and `npm run audit` on pushes and pull requests.
+- GitHub Pages deploys the production `dist` build automatically on pushes to `main`.

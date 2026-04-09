@@ -26,6 +26,7 @@ import { SectionActionsContext } from '../components/SectionActionsContext';
 import { CanvasEditorContext } from '../components/CanvasEditorContext';
 import { getRewriteModeDescription, getRewriteModeLabel } from '../utils/aiConfig';
 import { bulletBlockValue, parseBulletBlock } from '../utils/bulletBlocks';
+import { calculateResumeQuality } from '../utils/resumeQuality';
 
 import ExecutiveNavy from '../templates/ExecutiveNavy';
 import BoldCoral from '../templates/BoldCoral';
@@ -302,41 +303,7 @@ export default function EditorPage({
     };
   }, [selectedCanvasItemId]);
 
-  const resumeQuality = useMemo(() => {
-    const skillsCount = data?.skills?.filter(Boolean).length || 0;
-    const experienceCount = data?.experience?.length || 0;
-    const experienceBullets = (data?.experience || []).reduce((sum, item) => sum + (item?.bullets?.filter(Boolean).length || 0), 0);
-    const educationCount = data?.education?.length || 0;
-    const certificationsCount = data?.certifications?.filter(Boolean).length || 0;
-    const hasSummary = !!data?.summary?.trim();
-    const hasContact = [data?.email, data?.phone, data?.location].filter(Boolean).length >= 2;
-    const customCount = data?.customSections?.reduce((sum, section) => sum + (section?.items?.filter(Boolean).length || 0), 0) || 0;
-
-    const score = Math.min(
-      100,
-      (hasSummary ? 18 : 0) +
-      (hasContact ? 14 : 0) +
-      Math.min(experienceCount * 14, 28) +
-      Math.min(experienceBullets * 3, 18) +
-      Math.min(skillsCount * 2, 10) +
-      Math.min(educationCount * 8, 8) +
-      Math.min(certificationsCount * 4, 8) +
-      Math.min(customCount * 2, 14)
-    );
-
-    const suggestions = [];
-    if (!hasSummary) suggestions.push('Add a stronger profile summary.');
-    if (experienceBullets < 6) suggestions.push('Expand impact bullets to improve recruiter scanability.');
-    if (skillsCount < 6) suggestions.push('List more core skills for better ATS coverage.');
-    if (!educationCount) suggestions.push('Add education for a more balanced layout.');
-    if (!(data?.customSections?.length || 0)) suggestions.push('Use one extra section like Projects, Awards, or Languages.');
-
-    return {
-      score,
-      label: score >= 86 ? 'Excellent' : score >= 72 ? 'Strong' : score >= 58 ? 'Good base' : 'Needs polish',
-      suggestions: suggestions.slice(0, 3),
-    };
-  }, [data]);
+  const resumeQuality = useMemo(() => calculateResumeQuality(data), [data]);
   const customSections = useMemo(() => data?.customSections || [], [data?.customSections]);
 
   // ── dnd-kit: drag context for reordering + cross-column dragging ──
@@ -1155,7 +1122,7 @@ export default function EditorPage({
       cancelAnimationFrame(raf2);
       clearTimeout(paginationRetryTimerRef.current);
     };
-  }, [data, expPageMap, expGroupPageMap, expBulletPageMap, skillsPageMap, educationPageMap, certPageMap, customItemPageMap, extraPages, sectionOrder, sidebarOrder, sectionLayout, template, ensurePage, paginationTick, materializeExperienceForPage, pageLayoutModes, setSectionLayout, setSectionOrder, setSidebarOrder]);
+  }, [data, expPageMap, expGroupPageMap, expBulletPageMap, skillsPageMap, educationPageMap, certPageMap, customItemPageMap, extraPages, sectionOrder, sidebarOrder, sectionLayout, template, ensurePage, paginationTick, materializeExperienceForPage, pageLayoutModes, setSectionLayout, setSectionOrder, setSidebarOrder, lastExperienceContentPage]);
 
   // ── Sync custom section IDs into sectionOrder / sidebarOrder ──
   // Custom sections use `cs_{id}` as drag IDs so they participate in SortableContext
@@ -1761,7 +1728,7 @@ export default function EditorPage({
       lastDropMetaRef.current = { id: active.id, fromPage: 1, toPage: 1 };
       syncLayout(sectionOrder, sidebarOrder);
     }
-  }, [findContainer, parseContainer, resolveOverForSection, resolveDropTargetFromPoint, isContainerId, setSectionOrder, setSidebarOrder, setSectionLayout, syncLayout, sectionOrder, sidebarOrder, data, onEdit, ensurePage, ensurePageSupportsColumn, template, getInsertionOffset, placeSectionOnPage]);
+  }, [findContainer, parseContainer, resolveOverForSection, resolveDropTargetFromPoint, isContainerId, setSectionOrder, setSidebarOrder, setSectionLayout, syncLayout, sectionOrder, sidebarOrder, data, onEdit, ensurePageSupportsColumn, template, getInsertionOffset, placeSectionOnPage, moveVisibleExperienceContentToPage]);
 
   const handleDragCancel = useCallback(() => {
     setActiveDragId(null);

@@ -3,6 +3,7 @@ import { extractText } from '../utils/extractText';
 import { rewriteTextWithAI } from '../utils/rewriteWithAI';
 import GuidedFormFlow from '../components/GuidedFormFlow';
 import { getRewriteModeDescription, getRewriteModeLabel } from '../utils/aiConfig';
+import { getStorageJSON, removeStorageValue, setStorageJSON } from '../utils/storage';
 
 const FORM_STORAGE_KEY = 'resumeBuilder_guidedFormDraft';
 
@@ -544,13 +545,7 @@ function buildStructuredResumeFromForm(form) {
 }
 
 function getInitialDraft() {
-  try {
-    const raw = localStorage.getItem(FORM_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  return getStorageJSON(FORM_STORAGE_KEY, null);
 }
 
 function InputField({ label, value, onChange, placeholder }) {
@@ -621,14 +616,7 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
   const photoRef = useRef(null);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        FORM_STORAGE_KEY,
-        JSON.stringify({ mode, formStep, pasteText, photoName, form })
-      );
-    } catch {
-      return undefined;
-    }
+    setStorageJSON(FORM_STORAGE_KEY, { mode, formStep, pasteText, photoName, form });
   }, [mode, formStep, pasteText, photoName, form]);
 
   useEffect(() => {
@@ -893,7 +881,7 @@ export default function UploadPage({ onTextExtracted, onPhotoUpload, onStructure
 
   const clearDraft = () => {
     try {
-      localStorage.removeItem(FORM_STORAGE_KEY);
+      removeStorageValue(FORM_STORAGE_KEY);
     } catch {
       return;
     }

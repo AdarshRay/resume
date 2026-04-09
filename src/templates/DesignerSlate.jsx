@@ -10,7 +10,7 @@ import CertificationsRenderer from '../components/CertificationsRenderer';
 import ProjectSection from '../components/ProjectSection';
 import { isStructuredProjectSection } from '../utils/projectSections';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { bulletBlockValue, parseBulletBlock, isPlainBulletLine, stripPlainBulletPrefix, isStoredBulletLine, extractStoredBulletGlyph } from '../utils/bulletBlocks';
+import { isPlainBulletLine, stripPlainBulletPrefix, isStoredBulletLine, extractStoredBulletGlyph } from '../utils/bulletBlocks';
 
 const DEFAULTS = {
   accent: '#9CA3B5',
@@ -74,41 +74,6 @@ export default function DesignerSlate({
   const findCS = (id) => {
     if (typeof id !== 'string' || !id.startsWith('cs_')) return null;
     return (d.customSections || []).find(s => s.id === id.slice(3)) || null;
-  };
-
-  const renderDesignerBullets = (bullets, options = {}) => {
-    const {
-      textColor,
-      fontDelta = 0,
-      lineHeight = 1.55,
-      bulletEdit,
-      bulletDelete,
-      bulletAdd,
-    } = options;
-
-    return (
-      <EditableText
-        value={bulletBlockValue(bullets, '•')}
-        onChange={(v) => {
-          const nextBullets = parseBulletBlock(v);
-          const current = bullets || [];
-          nextBullets.forEach((item, bulletIndex) => {
-            if (current[bulletIndex] !== undefined) bulletEdit(bulletIndex, item);
-            else bulletAdd?.();
-          });
-          nextBullets.forEach((item, bulletIndex) => {
-            if (current[bulletIndex] === undefined) bulletEdit(bulletIndex, item);
-          });
-          for (let bulletIndex = current.length - 1; bulletIndex >= nextBullets.length; bulletIndex -= 1) {
-            bulletDelete(bulletIndex);
-          }
-        }}
-        tag="div"
-        multiline
-        bulletBlock
-        style={{ whiteSpace: 'pre-line', fontSize: fontSize + fontDelta, color: textColor, lineHeight }}
-      />
-    );
   };
 
   const renderDesignerBulletRows = (bullets, options = {}) => {
